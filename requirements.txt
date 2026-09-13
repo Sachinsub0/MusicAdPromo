@@ -1,0 +1,12 @@
+# Local CPU-only dependencies. Image-generation packages live inside modal_app.py.
+fastapi
+uvicorn[standard]
+python-multipart
+streamlit
+requests
+modal
+boto3
+librosa
+numpy
+pillow>=10.0.0
+python-dotenv
