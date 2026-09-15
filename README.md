@@ -1,65 +1,55 @@
-# MusicAdPromo v4
+# MusicAdPromo v6
 
-A deliberately simplified 10–15 second music-promo generator.
+**Goal:** combine the atmosphere of the old animated-image ads with lyrics that are actually synchronized to vocals and musical events.
 
-## Pipeline
-Song + lyrics → rank promo hooks → analyze audio mood + lyrical theme → create ONE visual concept → generate ONE hero image → animate that image → attach the selected song segment.
+## v6 pipeline
+Hook selection → mood/lyric understanding → one hero image → restrained image animation → WhisperX word alignment → beat/onset timeline → kinetic typography → final audio mix.
 
-There is no storyboard and no multi-shot continuity system.
+## Critical timing rule
+**WhisperX decides WHEN words appear. Beats/onsets only decide HOW the active typography/background reacts.**
+The renderer never redistributes supplied lyrics proportionally across a phrase like v5 did.
 
-## 1. Setup
+WhisperX provides forced word alignment using phoneme ASR models. librosa provides explicit beat and onset event timestamps. v6 combines both into one clip-local master timeline.
+
+## Important v6 MVP choice
+Hero-image generation is deliberately decoupled from synchronization. Upload any 9:16 hero image and v6 adds restrained Ken Burns movement plus beat micro-pulses. This lets you validate sync first. The generated `image_prompt` is ready for plugging an image generator back in after timing is proven.
+
+## Requirements
+- Python 3.11 or 3.12 recommended
+- ffmpeg installed (`brew install ffmpeg` on macOS)
+- First WhisperX run downloads its ASR/alignment models and can take a while.
+
+## Setup
 ```bash
-cd promo-generator-v4
+cd promo-generator-v6
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-cp .env.example .env
+pip install -r requirements.txt
 ```
 
-Fill `.env` with the same R2 credentials you already use:
-```dotenv
-R2_ACCOUNT_ID=...
-R2_ACCESS_KEY_ID=...
-R2_SECRET_ACCESS_KEY=...
-R2_BUCKET_NAME=promo-videos
-BACKEND_URL=http://localhost:8000
-```
-
-## 2. Modal
-The existing Modal secret `r2-credentials` must contain the same four R2 values.
-
-Deploy:
-```bash
-modal deploy modal_app.py
-```
-The Modal app name is `musicadpromo-v4` and exposes `generate_hero_image` and `animate_promo`.
-
-## 3. Backend
+## Run
+Terminal 1:
 ```bash
 source .venv/bin/activate
 python -m uvicorn backend.main:app --reload
 ```
-Test: http://127.0.0.1:8000/health
 
-## 4. Frontend
-In another terminal:
+Terminal 2:
 ```bash
-cd promo-generator-v4
 source .venv/bin/activate
 python -m streamlit run frontend/app.py
 ```
+
 Open http://localhost:8501.
 
-## 5. Workflow
-1. Upload song.
-2. Paste lyrics.
-3. Analyze song.
-4. Review mood, lyrical theme, selected hook, and visual concept.
-5. Generate one hero image. Regenerate/edit until it is good.
-6. Edit the motion prompt if desired.
-7. Animate the image.
-8. The selected 10–15 second source-audio segment is attached automatically.
+## Test sequence
+1. Upload song + full lyrics.
+2. Analyze + align.
+3. **Before rendering, inspect the Alignment Check table.** If word start/end times are wrong, don't debug typography yet.
+4. Upload a hero image.
+5. Render.
+6. Verify lyric entry against the vocal and micro-pulses against beats/onsets.
 
-## Important
-v4 intentionally optimizes for animated-cover-art / premium social-promo aesthetics rather than a miniature AI music video. The video worker currently uses CogVideoX-5B-I2V behind one function so the I2V model can be swapped later without redesigning the app.
+## Next step after sync passes
+Reconnect automatic hero-image generation and optional I2V. Keep it as a background layer only; never let generative video own lyric timing.
