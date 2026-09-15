@@ -53,3 +53,13 @@ Open http://localhost:8501.
 
 ## Next step after sync passes
 Reconnect automatic hero-image generation and optional I2V. Keep it as a background layer only; never let generative video own lyric timing.
+
+
+## v6.1 responsive lyric layout
+The renderer now guarantees lyric visibility inside the 9:16 safe area:
+- automatic line wrapping,
+- adaptive font sizing,
+- up to four centered lines per phrase,
+- fixed word slots so active-word scaling does not reflow neighboring words,
+- defensive horizontal clamping,
+- upcoming/current/past words remain readable.
