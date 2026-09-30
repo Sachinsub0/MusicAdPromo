@@ -1,12 +1,13 @@
 from __future__ import annotations
 import os,sys,tempfile,uuid,json
-from fastapi import FastAPI,UploadFile,File,Form
+from fastapi import FastAPI,UploadFile,File,Form,HTTPException
 from fastapi.responses import FileResponse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.audio import rank_hooks,timeline
 from shared.alignment import align_words
 from shared.director import understand,decorate,image_prompt
 from shared.renderer import render
+from shared.templates import recommend, TEMPLATES
 app=FastAPI(title="MusicAdPromo v6");OUT=os.path.join(tempfile.gettempdir(),"mapv6");os.makedirs(OUT,exist_ok=True)
 def save(u,b):
  ext=os.path.splitext(u.filename or "x")[1] or ".bin";p=os.path.join(OUT,uuid.uuid4().hex+ext);open(p,"wb").write(b);return p
@@ -19,11 +20,14 @@ async def analyze(audio:UploadFile=File(...),lyrics:str=Form(""),duration:int=Fo
  detected_lyrics=" ".join(w["word"] for w in words)
  effective_lyrics=lyrics.strip() or detected_lyrics
  creative=understand(effective_lyrics,tl);words=decorate(words,tl)
- return {"clip_start":start,"duration":duration,"candidates":c,"timeline":tl,"creative":creative,"words":words,"detected_lyrics":detected_lyrics,"transcription":transcription,"image_prompt":image_prompt(creative)}
+ return {"clip_start":start,"duration":duration,"candidates":c,"timeline":tl,"creative":creative,"words":words,"detected_lyrics":detected_lyrics,"transcription":transcription,"image_prompt":image_prompt(creative),"template":recommend(creative,tl,effective_lyrics)}
 @app.post("/render")
 async def make(audio:UploadFile=File(...),plan_json:str=Form(...),background:UploadFile|None=File(None)):
  ap=save(audio,await audio.read());bp=None
  if background:bp=save(background,await background.read())
- plan=json.loads(plan_json);out=os.path.join(OUT,uuid.uuid4().hex+".mp4");render(plan,ap,out,bp);return {"video_id":os.path.basename(out)}
+ plan=json.loads(plan_json)
+ if plan.get("template") not in TEMPLATES:raise HTTPException(422,"Select a valid visual template")
+ if " ".join(w["word"] for w in plan["words"]) != " ".join(plan.get("detected_lyrics", "").split()):raise HTTPException(422,"Lyrics and alignment differ. Re-align before rendering.")
+ out=os.path.join(OUT,uuid.uuid4().hex+".mp4");render(plan,ap,out,bp);return {"video_id":os.path.basename(out)}
 @app.get("/video/{vid}")
 def vid(vid:str):return FileResponse(os.path.join(OUT,os.path.basename(vid)),media_type="video/mp4",filename="musicadpromo-v6.mp4")

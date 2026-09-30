@@ -1,7 +1,11 @@
 from __future__ import annotations
-import os, math, tempfile, subprocess
+import os, math, tempfile, subprocess, shutil
+from shared.templates import frame, TEMPLATES, recommend
 from PIL import Image, ImageDraw, ImageFont
-import imageio_ffmpeg
+try:
+    import imageio_ffmpeg
+except ImportError:
+    imageio_ffmpeg = None
 
 W, H, FPS = 540, 960, 30
 
@@ -135,7 +139,8 @@ def render(plan, audio, out, background=None):
         top = (bg.height-H)//2
         bg = bg.crop((left, top, left+W, top+H))
     else:
-        bg = Image.new("RGB", (W, H), (10, 10, 18))
+        bg = None
+    template = plan.get("template") or recommend(plan.get("creative", {}), plan["timeline"], plan.get("detected_lyrics", ""))
 
     # Phrase segmentation stays timing-aware, but phrase layout is now responsive.
     groups, g = [], []
@@ -161,7 +166,8 @@ def render(plan, audio, out, background=None):
         # Restrained animated-cover-art background.
         scale = 1.035 + .018*(t/duration) + .008*beatp
         nw, nh = int(W*scale), int(H*scale)
-        im = bg.resize((nw, nh), Image.Resampling.LANCZOS)
+        scene = bg if bg is not None else frame(template, t, beatp, W, H)
+        im = scene.resize((nw, nh), Image.Resampling.LANCZOS)
         x = (nw-W)//2 + int(math.sin(t*.35)*4)
         y = (nh-H)//2
         im = im.crop((x, y, x+W, y+H))
@@ -201,6 +207,11 @@ def render(plan, audio, out, background=None):
                         dy = -abs(math.sin(local*math.pi*2))*20
                     elif w["effect"] == "stretch":
                         sc += .10*max(0, min(1, local))
+                    elif w["effect"] == "slide":
+                        dx = -16*(1-max(0,min(1,local)))
+                    elif w["effect"] == "spin":
+                        dx = math.sin(local*math.pi*2)*8
+                        dy = math.cos(local*math.pi*2)*8
                     elif w["effect"] == "pulse":
                         sc += .07*math.sin(max(0, local)*math.pi)
 
@@ -212,7 +223,7 @@ def render(plan, audio, out, background=None):
                 if t < w["start"]:
                     fill = (160, 160, 165)
                 elif is_active:
-                    fill = (255, 232, 180)
+                    fill = TEMPLATES[template]["accent"]
                 else:
                     fill = (220, 220, 220)
 
@@ -222,6 +233,9 @@ def render(plan, audio, out, background=None):
                 # Final defensive clamp: rendered glyph itself cannot leave safe margins.
                 tx = max(SAFE_X, min(tx, W-SAFE_X-tw))
 
+                ty = max(100, min(ty, H-100-th))
+                if is_active:
+                    d.rounded_rectangle((tx-7,ty+bb[1]-5,tx+tw+7,ty+bb[1]+th+6),radius=8,fill=(28,28,44),outline=fill,width=2)
                 d.text(
                     (tx, ty),
                     w["word"],
@@ -233,7 +247,8 @@ def render(plan, audio, out, background=None):
 
         im.save(os.path.join(fd, f"{fi:05d}.jpg"), quality=92)
 
-    ff = imageio_ffmpeg.get_ffmpeg_exe()
+    ff = imageio_ffmpeg.get_ffmpeg_exe() if imageio_ffmpeg else shutil.which("ffmpeg")
+    if not ff: raise RuntimeError("ffmpeg is required for video rendering")
     silent = os.path.join(tmp, "silent.mp4")
     subprocess.run([
         ff, "-y", "-loglevel", "error",
@@ -251,4 +266,5 @@ def render(plan, audio, out, background=None):
         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
         "-shortest", "-movflags", "+faststart", out
     ], check=True)
+    shutil.rmtree(tmp, ignore_errors=True)
     return out
