@@ -3,8 +3,12 @@ import requests, json, os, hashlib, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.alignment import preview_corrections
 from shared.director import decorate
-from shared.templates import TEMPLATES, frame
-B=os.environ.get('BACKEND_URL','http://127.0.0.1:8000').rstrip('/')
+from shared.templates import TEMPLATES, frame, recommend
+try:
+ configured_backend=st.secrets.get('BACKEND_URL')
+except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+ configured_backend=None
+B=(os.environ.get('BACKEND_URL') or configured_backend or 'http://127.0.0.1:8000').rstrip('/')
 st.set_page_config(page_title='MusicAdPromo',page_icon='🎵',layout='wide')
 st.title('🎵 MusicAdPromo')
 st.caption('Your song. A cinematic template. Lyrics that move with your vocals.')
@@ -32,6 +36,12 @@ if st.button('Analyze song',type='primary',use_container_width=True):
  else:st.error('Upload a song first.')
 p=st.session_state.get('plan')
 if p:
+ if p.get('schema_version') != 'templates-v1':
+  st.error('Your backend is running an older version. Deploy the backend and shared files from this ZIP, then analyze again. Rendering is disabled until both versions match.')
+  st.stop()
+ p.setdefault('detected_lyrics', ' '.join(w['word'] for w in p.get('words', [])))
+ if p.get('template') not in TEMPLATES:
+  p['template']=recommend(p.get('creative', {}),p.get('timeline', {}),p['detected_lyrics'])
  a,b,c=st.columns(3)
  a.metric('Hook',f"{p['clip_start']:.2f}–{p['clip_start']+p['duration']:.2f}s")
  b.metric('Tempo',f"{p['timeline']['tempo_bpm']} BPM")
