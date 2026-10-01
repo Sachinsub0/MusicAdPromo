@@ -53,8 +53,8 @@ if p:
    if st.button(f"{x['start']:.2f}–{x['end']:.2f}s",key=f'hook_{i}'):
     if analyze(x['start']):st.rerun()
  st.subheader('Detected lyrics')
- reviewed=st.text_area('Review and correct',value=p['detected_lyrics'],key=f"review_{st.session_state.get('revision',0)}",height=140,help='Edits update the alignment words immediately. Re-align to measure corrected word timing against the vocals.')
- dirty=reviewed.split()!=p['detected_lyrics'].split()
+ reviewed=st.text_area('Review and correct',value=p.get('detected_lyrics', ' '.join(w['word'] for w in p.get('words', []))),key=f"review_{st.session_state.get('revision',0)}",height=140,help='Edits update the alignment words immediately. Re-align to measure corrected word timing against the vocals.')
+ dirty=reviewed.split()!=p.get('detected_lyrics', ' '.join(w['word'] for w in p.get('words', []))).split()
  shown=decorate(preview_corrections(p['words'],reviewed,p['duration']),p['timeline']) if dirty else p['words']
  if dirty:st.info('Your edits are shown below. Re-align corrected lyrics before rendering; changed-word times are provisional.')
  if st.button('Re-align corrected lyrics',disabled=not reviewed.strip(),use_container_width=True):
@@ -66,7 +66,7 @@ if p:
  if estimated:st.warning(f'{estimated} word(s) have estimated timing. Review them before rendering.')
  st.subheader('Visual template')
  choice=st.selectbox('Scene',['auto']+list(TEMPLATES),format_func=lambda x:'Automatic — match song mood' if x=='auto' else TEMPLATES[x]['name'])
- selected=p['template'] if choice=='auto' else choice
+ selected=p.get('template', 'river_skyline') if choice=='auto' else choice
  st.caption(TEMPLATES[selected]['name']+' · '+TEMPLATES[selected]['description'])
  st.image(frame(selected,1.5),width=270)
  if duration!=p['duration']:st.info('Analyze again to apply the new promo length.')
