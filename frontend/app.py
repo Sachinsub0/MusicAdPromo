@@ -56,7 +56,7 @@ if p:
  if estimated:st.warning(f'{estimated} word(s) have estimated timing. Review them before rendering.')
  st.subheader('Visual template')
  choice=st.selectbox('Scene',['auto']+list(TEMPLATES),format_func=lambda x:'Automatic — match song mood' if x=='auto' else TEMPLATES[x]['name'])
- selected=p['template'] if choice=='auto' else choice
+ selected=p.get('template', 'river_skyline') if choice=='auto' else choice
  st.caption(TEMPLATES[selected]['name']+' · '+TEMPLATES[selected]['description'])
  st.image(frame(selected,1.5),width=270)
  if duration!=p['duration']:st.info('Analyze again to apply the new promo length.')
