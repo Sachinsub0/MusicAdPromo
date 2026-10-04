@@ -78,4 +78,26 @@ if p:
    if r.ok:st.session_state.video=B+'/video/'+r.json()['video_id']
    else:st.error(r.text)
   except requests.RequestException as exc:st.error(f'Render request failed: {exc}')
-if st.session_state.get('video'):st.video(st.session_state.video)
+ if st.session_state.get('video'):
+    video_url = st.session_state.video
+    st.video(video_url)
+
+    @st.cache_data(ttl=3600, show_spinner=False)
+    def fetch_video(url):
+        response = requests.get(url, timeout=120)
+        response.raise_for_status()
+        return response.content
+
+    try:
+        with st.spinner('Preparing download…'):
+            video_bytes = fetch_video(video_url)
+
+        st.download_button(
+            label='⬇️ Download MP4',
+            data=video_bytes,
+            file_name='musicadpromo.mp4',
+            mime='video/mp4',
+            use_container_width=True,
+        )
+    except requests.RequestException:
+        st.warning('Could not prepare the download. Refresh and try again.')
