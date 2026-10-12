@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.alignment import preview_corrections
 from shared.director import decorate, understand
 from shared.templates import TEMPLATES, frame, recommend
+from shared.preview import preview_mood
 try:
  configured_backend=st.secrets.get('BACKEND_URL')
 except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
@@ -48,11 +49,11 @@ if p:
   st.stop()
  p.setdefault('detected_lyrics', ' '.join(w['word'] for w in p.get('words', [])))
  if p.get('template') not in TEMPLATES:
-  p['template']=recommend(p.get('creative', {}),p.get('timeline', {}),p['detected_lyrics'])
+  p['template']=recommend(p.get('creative', {}),p.get('timeline', {}))
  a,b,c=st.columns(3)
  a.metric('Hook',f"{p['clip_start']:.2f}–{p['clip_start']+p['duration']:.2f}s")
  b.metric('Tempo',f"{p['timeline']['tempo_bpm']} BPM")
- c.metric('Mood',' · '.join(p['creative']['mood']))
+ mood_display=c.empty()
  transcription=p.get('transcription',{})
  if transcription.get('vocal_separation','').startswith('fallback'):st.warning('Vocal separation was unavailable; please review the transcription from the original mix.')
  with st.expander('Other hook candidates'):
@@ -73,11 +74,12 @@ if p:
  if estimated:st.warning(f'{estimated} word(s) have estimated timing. Review them before rendering.')
  st.subheader('Visual template')
  choice=st.selectbox('Scene',['auto']+list(TEMPLATES),format_func=lambda x:'Automatic — match song mood' if x=='auto' else TEMPLATES[x]['name'])
- preview_creative=understand(reviewed,p['timeline'])
+ preview_creative=preview_mood(p,reviewed)
+ mood_display.metric('Mood',' · '.join(preview_creative['mood']))
  automatic_template=recommend(preview_creative,p['timeline'])
  selected=automatic_template if choice=='auto' else choice
  st.caption('Lyric mood: '+' · '.join(preview_creative['mood']))
- st.caption('Analysis: '+('AI meaning and context' if preview_creative.get('mood_method')=='semantic_ai' else 'Offline lyric rules'))
+ st.caption('Analysis: '+{'semantic_ai':'AI meaning and context','backend_analysis':'Backend song analysis','offline_rules':'Offline lyric rules'}.get(preview_creative.get('mood_method'),'Backend song analysis'))
  if preview_creative.get('mood_notice'):st.info(preview_creative['mood_notice'])
  mood_reason=preview_creative.get('mood_reason')
  if mood_reason:

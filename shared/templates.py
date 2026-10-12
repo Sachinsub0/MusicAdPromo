@@ -18,8 +18,8 @@ def recommend(creative,timeline,lyrics=''):
  if primary in {'romantic','dreamy'}:return 'dreamscape'
  if primary in {'confident','celebratory'}:return 'racecars'
  # Compatibility for plans containing only the original mood list.
- if moods & {'melancholic','dark','longing'}:return 'river_skyline'
- if moods & {'romantic','dreamy','hopeful'}:return 'dreamscape'
+ if moods & {'melancholic','dark'}:return 'river_skyline'
+ if moods & {'romantic','dreamy','hopeful','longing'}:return 'dreamscape'
  if moods & {'energetic','confident','celebratory'}:return 'racecars'
  return 'river_skyline'
 @lru_cache(maxsize=12)

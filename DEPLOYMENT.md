@@ -33,3 +33,9 @@ edited lyrics receive new analysis. Review transcription before choosing a mood.
 The existing three scenes remain: melancholic/dark → River skyline;
 romantic/dreamy → Moonlit dreamscape; confident/celebratory → Neon racecars.
 Distinct moods can share a scene. AI is probabilistic; manual selection remains.
+
+## Consistent mood display fix
+The template preview now reuses the backend mood for unchanged reviewed lyrics.
+Only lyric edits trigger a new analysis. Both mood displays and automatic scene
+selection use that same result. Include the NEW shared/preview.py when deploying.
+Reboot Streamlit and restart the backend, then Analyze song again.
