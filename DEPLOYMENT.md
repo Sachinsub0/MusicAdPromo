@@ -15,3 +15,21 @@ Use frontend/app.py as entrypoint. frontend/requirements.txt keeps the frontend 
     BACKEND_URL = "https://musicadpromo.onrender.com"
 
 Use your actual backend URL. Refresh the interface and analyze the song again after both deployments finish. Old plans are rejected with a clear version mismatch message rather than rendering a blank background.
+
+## Context-aware lyric mood
+Deploy frontend/app.py and all shared files together. Reboot Streamlit, restart
+the backend, then analyze again. To enable AI meaning/context analysis, add to
+Streamlit secrets:
+```toml
+OPENAI_API_KEY = "your-api-key"
+LYRIC_MOOD_MODEL = "gpt-4o-mini"
+```
+Set the same environment variables on the backend. Keep keys out of GitHub.
+AI analysis sends hook lyrics (up to 16,000 characters), not audio, to OpenAI;
+API usage charges apply. Set LYRIC_MOOD_AI="false" for offline-only analysis.
+The UI identifies the active method and reports fallback when the key is absent,
+the service fails, or AI is uncertain. Successful results are cached in memory;
+edited lyrics receive new analysis. Review transcription before choosing a mood.
+The existing three scenes remain: melancholic/dark → River skyline;
+romantic/dreamy → Moonlit dreamscape; confident/celebratory → Neon racecars.
+Distinct moods can share a scene. AI is probabilistic; manual selection remains.

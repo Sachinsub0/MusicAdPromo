@@ -9,6 +9,13 @@ try:
 except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
  configured_backend=None
 B=(os.environ.get('BACKEND_URL') or configured_backend or 'http://127.0.0.1:8000').rstrip('/')
+# Streamlit secrets are made available to the shared mood analyzer.
+try:
+ for setting in ('OPENAI_API_KEY', 'LYRIC_MOOD_MODEL', 'LYRIC_MOOD_AI'):
+  if st.secrets.get(setting) is not None and setting not in os.environ:
+   os.environ[setting]=str(st.secrets[setting])
+except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+ pass
 st.set_page_config(page_title='MusicAdPromo',page_icon='🎵',layout='wide')
 st.title('🎵 MusicAdPromo')
 st.caption('Your song. A cinematic template. Lyrics that move with your vocals.')
@@ -67,9 +74,11 @@ if p:
  st.subheader('Visual template')
  choice=st.selectbox('Scene',['auto']+list(TEMPLATES),format_func=lambda x:'Automatic — match song mood' if x=='auto' else TEMPLATES[x]['name'])
  preview_creative=understand(reviewed,p['timeline'])
- automatic_template=recommend(preview_creative,p['timeline'],reviewed)
+ automatic_template=recommend(preview_creative,p['timeline'])
  selected=automatic_template if choice=='auto' else choice
  st.caption('Lyric mood: '+' · '.join(preview_creative['mood']))
+ st.caption('Analysis: '+('AI meaning and context' if preview_creative.get('mood_method')=='semantic_ai' else 'Offline lyric rules'))
+ if preview_creative.get('mood_notice'):st.info(preview_creative['mood_notice'])
  mood_reason=preview_creative.get('mood_reason')
  if mood_reason:
   st.caption(mood_reason)
