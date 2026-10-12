@@ -70,7 +70,7 @@ if p:
  automatic_template=recommend(preview_creative,p['timeline'],reviewed)
  selected=automatic_template if choice=='auto' else choice
  st.caption('Lyric mood: '+' · '.join(preview_creative['mood']))
- st.caption(preview_creative['mood_reason'])
+ st.caption(preview_creative.get('mood_reason', ''))
  if choice!='auto':st.caption('Manual scene selected; automatic suggestion: '+TEMPLATES[automatic_template]['name'])
  st.caption(TEMPLATES[selected]['name']+' · '+TEMPLATES[selected]['description'])
  st.image(frame(selected,1.5),width=270)
