@@ -70,7 +70,7 @@ if p:
  automatic_template=recommend(preview_creative,p['timeline'],reviewed)
  selected=automatic_template if choice=='auto' else choice
  st.caption('Lyric mood: '+' · '.join(preview_creative['mood']))
-mood_reason=preview_creative.get('mood_reason')
+ mood_reason=preview_creative.get('mood_reason')
  if mood_reason:
   st.caption(mood_reason)
  else:
