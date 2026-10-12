@@ -36,11 +36,17 @@ class MoodTests(unittest.TestCase):
         self.assertEqual(recommend({'mood': ['energetic']}, {'energy': .9},
                                    'You left me with a broken heart'), 'river_skyline')
 
+    def test_user_relationship_hook(self):
+        lyrics = "I cannot let Gucci back Louis V. That's what you want. All these questions in my head how it went wrong. I was focused on myself when you felt lost. I'm worth more than the stuff that your host brought."
+        creative, scene = self.pick(lyrics)
+        self.assertEqual(creative['primary_mood'], 'melancholic')
+        self.assertEqual(scene, 'river_skyline')
+
     def test_empty_unknown_and_non_english_fallback(self):
         for lyrics in ['', 'the table is over there', 'こんにちは']:
             creative, scene = self.pick(lyrics)
-            self.assertEqual(creative['mood_source'], 'audio_fallback')
-            self.assertEqual(scene, 'racecars')
+            self.assertEqual(creative['mood_source'], 'neutral_fallback')
+            self.assertEqual(scene, 'river_skyline')
         self.assertEqual(self.pick('', .1)[1], 'river_skyline')
 
 if __name__ == '__main__':

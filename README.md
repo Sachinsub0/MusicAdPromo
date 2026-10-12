@@ -71,7 +71,7 @@ Manual scene selection is still available.
 The analyzer runs offline, uses English words and phrases with limited negation
 handling, and needs no new dependencies or API keys. It is a heuristic: sarcasm,
 slang, complex context and other languages may be misread. When there are no
-clear lyric cues it uses audio energy and says so. Mood describes the selected
+clear lyric cues it uses a neutral River skyline scene and says so. Audio energy does not decide lyric mood. Mood describes the selected
 hook, not necessarily the whole song.
 
 Deploy `backend/main.py`, the complete `shared/` folder (including `mood.py`),

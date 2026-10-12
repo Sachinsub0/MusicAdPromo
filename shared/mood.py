@@ -1,6 +1,6 @@
 """Offline English lyric mood analysis: phrases, negation and mixed emotions.
 
-This is an explainable heuristic, not a language model. Audio is a fallback;
+This is an explainable heuristic, not a language model. Unclear lyrics use a neutral scene;
 it must not turn a heartbreak hook into a racing scene just because it is loud.
 """
 import re
@@ -14,7 +14,7 @@ LABELS = {
     'dark': ('dark', 'tense', 'cinematic'),
 }
 CUES = {
-    'melancholic': {'heartbroken', 'heartbreak', 'lonely', 'alone', 'pain', 'hurt', 'cry', 'crying', 'tears', 'lost', 'miss', 'missing', 'goodbye', 'sad', 'broken', 'regret', 'grief'},
+    'melancholic': {'heartbroken', 'heartbreak', 'lonely', 'alone', 'pain', 'hurt', 'cry', 'crying', 'tears', 'lost', 'miss', 'missing', 'goodbye', 'sad', 'broken', 'regret', 'grief', 'questions'},
     'romantic': {'love', 'loving', 'kiss', 'kisses', 'beautiful', 'pretty', 'lover', 'darling', 'adore', 'cuddle'},
     'dreamy': {'dream', 'dreams', 'dreaming', 'stars', 'moon', 'floating', 'hope', 'healing', 'peace', 'breathe', 'ocean', 'sunrise'},
     'confident': {'win', 'winning', 'grind', 'hustle', 'boss', 'champion', 'unstoppable', 'money', 'guap', 'rich', 'diamonds', 'flex', 'race', 'racing', 'speed', 'fast', 'balling'},
@@ -22,7 +22,7 @@ CUES = {
     'dark': {'rage', 'angry', 'anger', 'hate', 'revenge', 'demons', 'nightmare', 'fear', 'afraid', 'danger', 'blood', 'violent'},
 }
 PHRASES = {
-    'melancholic': ['miss you', 'without you', 'you left', 'left me', 'broke my heart', 'broken heart', 'falling apart', 'love is gone', "don't love me", "doesn't love me", 'no love', 'love hurts'],
+    'melancholic': ['miss you', 'without you', 'you left', 'left me', 'broke my heart', 'broken heart', 'falling apart', 'love is gone', "don't love me", "doesn't love me", 'no love', 'love hurts', 'went wrong', 'questions in my head', 'focused on myself', 'felt lost'],
     'romantic': ['in love', 'hold me', 'hold you', 'by my side', 'you and me', 'with you', 'your touch'],
     'dreamy': ['be okay', 'be ok', 'better days', 'moving on', 'let it go', 'find my peace'],
     'confident': ['on top', 'my way', 'made it', 'never give up', "can't stop me", 'getting paid'],
@@ -75,10 +75,10 @@ def analyze_lyrics(lyrics, timeline=None):
         reason = f"Lyrics suggest {primary}: " + ', '.join(matches) + '.'
         source = 'lyrics'
     else:
-        primary = 'confident' if (timeline or {}).get('energy', 0) > .7 else 'moody'
+        primary = 'moody'
         moods = list(LABELS.get(primary, ('moody', 'cinematic', 'intimate')))
-        reason = 'No clear English lyric mood cues; using audio energy as a fallback.'
-        source = 'audio_fallback'
+        reason = 'Lyric mood is unclear; using a neutral River skyline scene. Choose a scene manually if needed.'
+        source = 'neutral_fallback'
     return {'mood': moods, 'primary_mood': primary, 'theme': ' / '.join(moods[:2]),
             'mood_source': source, 'mood_reason': reason,
             'lyric_scores': scores, 'lyric_evidence': evidence}
