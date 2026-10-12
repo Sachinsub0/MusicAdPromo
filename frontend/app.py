@@ -2,7 +2,7 @@ import streamlit as st
 import requests, json, os, hashlib, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.alignment import preview_corrections
-from shared.director import decorate
+from shared.director import decorate, understand
 from shared.templates import TEMPLATES, frame, recommend
 try:
  configured_backend=st.secrets.get('BACKEND_URL')
@@ -66,13 +66,18 @@ if p:
  if estimated:st.warning(f'{estimated} word(s) have estimated timing. Review them before rendering.')
  st.subheader('Visual template')
  choice=st.selectbox('Scene',['auto']+list(TEMPLATES),format_func=lambda x:'Automatic — match song mood' if x=='auto' else TEMPLATES[x]['name'])
- selected=p.get('template', 'river_skyline') if choice=='auto' else choice
+ preview_creative=understand(reviewed,p['timeline'])
+ automatic_template=recommend(preview_creative,p['timeline'],reviewed)
+ selected=automatic_template if choice=='auto' else choice
+ st.caption('Lyric mood: '+' · '.join(preview_creative['mood']))
+ st.caption(preview_creative['mood_reason'])
+ if choice!='auto':st.caption('Manual scene selected; automatic suggestion: '+TEMPLATES[automatic_template]['name'])
  st.caption(TEMPLATES[selected]['name']+' · '+TEMPLATES[selected]['description'])
  st.image(frame(selected,1.5),width=270)
  if duration!=p['duration']:st.info('Analyze again to apply the new promo length.')
  if st.button('Render lyric video',type='primary',use_container_width=True,disabled=dirty or not shown or duration!=p['duration']):
   try:
-   render_plan={**p,'template':selected}
+   render_plan={**p,'template':selected,'creative':preview_creative}
    with st.spinner('Rendering animated template and synced lyrics…'):
     r=requests.post(B+'/render',files={'audio':(audio.name,audio.getvalue(),audio.type)},data={'plan_json':json.dumps(render_plan)},timeout=1800)
    if r.ok:st.session_state.video=B+'/video/'+r.json()['video_id']

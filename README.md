@@ -56,3 +56,24 @@ If vocal separation fails, the original mix is used. Output audio always comes f
 python -m unittest discover -s tests -v
 ```
 Tests cover lyric additions/deletions/repeated words, punctuation and missing timestamps, corrected text passed to forced alignment, and scene selection/animation. A short synthetic-audio render was also checked. Real-song transcription and deployment require testing on your backend; they were not run with a real song in this update.
+
+## Lyric-driven automatic scenes (v6.4)
+
+Automatic mode analyzes lyrics for the selected promo hook (pasted lyrics or
+detected vocals). Sad/reflective and dark lyrics choose River skyline;
+romantic/dreamy/hopeful lyrics choose Moonlit dreamscape;
+confident/celebratory lyrics choose Neon racecars. Clear lyric cues take priority
+over audio energy, including for upbeat heartbreak songs. The preview shows the
+inferred mood and the lyric cues behind it. Correcting lyrics refreshes the scene
+suggestion immediately; re-align corrections before rendering.
+Manual scene selection is still available.
+
+The analyzer runs offline, uses English words and phrases with limited negation
+handling, and needs no new dependencies or API keys. It is a heuristic: sarcasm,
+slang, complex context and other languages may be misread. When there are no
+clear lyric cues it uses audio energy and says so. Mood describes the selected
+hook, not necessarily the whole song.
+
+Deploy `backend/main.py`, the complete `shared/` folder (including `mood.py`),
+and `frontend/app.py` together, then analyze again to refresh existing plans.
+Run checks with `python -m unittest discover -s tests` from the project directory.

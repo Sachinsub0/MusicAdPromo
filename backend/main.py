@@ -12,7 +12,7 @@ app=FastAPI(title="MusicAdPromo v6");OUT=os.path.join(tempfile.gettempdir(),"map
 def save(u,b):
  ext=os.path.splitext(u.filename or "x")[1] or ".bin";p=os.path.join(OUT,uuid.uuid4().hex+ext);open(p,"wb").write(b);return p
 @app.get("/health")
-def health():return {"status":"ok","version":"MusicAdPromo-v6.3.1-templates"}
+def health():return {"status":"ok","version":"MusicAdPromo-v6.4-lyric-mood"}
 @app.post("/analyze")
 async def analyze(audio:UploadFile=File(...),lyrics:str=Form(""),duration:int=Form(12),selected_start:float|None=Form(None)):
  raw=await audio.read();p=save(audio,raw);c=rank_hooks(p,duration);start=float(selected_start if selected_start is not None else c[0]["start"]);tl=timeline(p,start,duration)

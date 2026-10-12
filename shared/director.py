@@ -2,13 +2,9 @@ from __future__ import annotations
 import re,math
 MOTION={"fall":"fall","falling":"fall","rise":"rise","rising":"rise","shake":"shake","shaking":"shake","bounce":"bounce","spin":"spin","spinning":"spin","fly":"rise","flying":"rise","drive":"slide","running":"slide","run":"slide"}
 EMO={"love","pretty","beautiful","heart","miss","lonely","alone","pain","hurt","dream","baby","girl","boy"}
+from shared.mood import analyze_lyrics
 def understand(lyrics,timeline):
- w=re.findall(r"[a-z']+",(lyrics or "").lower());rom=sum(x in {"love","pretty","baby","girl","boy","heart","kiss","miss","you"} for x in w);dark=sum(x in {"night","dark","alone","lonely","pain","hurt","cry","cold"} for x in w)
- if rom>=3 and dark>=1:mood=["romantic","longing","dreamy"]
- elif dark>=3:mood=["dark","melancholic","intimate"]
- elif timeline["energy"]>.7:mood=["energetic","confident","kinetic"]
- else:mood=["moody","cinematic","intimate"]
- return {"mood":mood,"theme":" / ".join(mood[:2])}
+ return analyze_lyrics(lyrics,timeline)
 def decorate(words,timeline):
  beats=timeline["beats"];ons=timeline["onsets"];out=[]
  for w in words:

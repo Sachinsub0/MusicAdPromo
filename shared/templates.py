@@ -8,9 +8,19 @@ TEMPLATES={
  'dreamscape':{'name':'Moonlit dreamscape','accent':(225,166,255),'description':'Moonlit mountains, drifting stars, lilac karaoke text.'},
 }
 def recommend(creative,timeline,lyrics=''):
- words=set(lyrics.lower().split());moods=set(creative.get('mood',[]))
- if words & {'race','racing','car','cars','drive','speed','fast'} or 'energetic' in moods:return 'racecars'
- if moods & {'romantic','dreamy','longing'}:return 'dreamscape'
+ # Recompute from current lyrics so corrected text cannot use a stale mood.
+ if lyrics.strip():
+  from shared.mood import analyze_lyrics
+  creative=analyze_lyrics(lyrics,timeline)
+ moods=set(creative.get('mood',[]))
+ primary=creative.get('primary_mood')
+ if primary in {'melancholic','dark','moody'}:return 'river_skyline'
+ if primary in {'romantic','dreamy'}:return 'dreamscape'
+ if primary in {'confident','celebratory'}:return 'racecars'
+ # Compatibility for plans containing only the original mood list.
+ if moods & {'melancholic','dark','longing'}:return 'river_skyline'
+ if moods & {'romantic','dreamy','hopeful'}:return 'dreamscape'
+ if moods & {'energetic','confident','celebratory'}:return 'racecars'
  return 'river_skyline'
 @lru_cache(maxsize=12)
 def _base(name,w,h):
