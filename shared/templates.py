@@ -4,23 +4,18 @@ from functools import lru_cache
 from PIL import Image, ImageDraw
 TEMPLATES={
  'river_skyline':{'name':'River skyline','accent':(105,224,255),'description':'Blue-hour skyline, moving river reflections, cyan karaoke text.'},
- 'racecars':{'name':'Neon racecars','accent':(255,114,74),'description':'Animated sports cars, neon highway, bold orange karaoke text.'},
  'dreamscape':{'name':'Moonlit dreamscape','accent':(225,166,255),'description':'Moonlit mountains, drifting stars, lilac karaoke text.'},
 }
 def recommend(creative,timeline,lyrics=''):
- # Recompute from current lyrics so corrected text cannot use a stale mood.
+ # Temporary controlled baseline: keep classification independent of visuals.
+ # Both obvious aggressive/car songs and sad songs get Moonlit dreamscape.
  if lyrics.strip():
   from shared.mood import analyze_lyrics
   creative=analyze_lyrics(lyrics,timeline)
  moods=set(creative.get('mood',[]))
- primary=creative.get('primary_mood')
- if primary in {'melancholic','dark','moody'}:return 'river_skyline'
- if primary in {'romantic','dreamy'}:return 'dreamscape'
- if primary in {'confident','celebratory'}:return 'racecars'
- # Compatibility for plans containing only the original mood list.
- if moods & {'melancholic','dark'}:return 'river_skyline'
- if moods & {'romantic','dreamy','hopeful','longing'}:return 'dreamscape'
- if moods & {'energetic','confident','celebratory'}:return 'racecars'
+ known={'melancholic','sad','dark','angry','aggressive','energetic','confident',
+        'celebratory','romantic','longing','dreamy','hopeful'}
+ if creative.get('primary_mood') in known or moods & known:return 'dreamscape'
  return 'river_skyline'
 @lru_cache(maxsize=12)
 def _base(name,w,h):

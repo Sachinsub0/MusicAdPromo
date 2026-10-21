@@ -39,3 +39,8 @@ The template preview now reuses the backend mood for unchanged reviewed lyrics.
 Only lyric edits trigger a new analysis. Both mood displays and automatic scene
 selection use that same result. Include the NEW shared/preview.py when deploying.
 Reboot Streamlit and restart the backend, then Analyze song again.
+
+## Latest: temporary Moonlit baseline
+This supersedes the earlier three-scene mapping: Neon racecars is removed from
+available scenes, and all recognized moods temporarily select Moonlit dreamscape.
+Read MOOD_TESTING.md for setup, comparison controls, and the 90% coverage target.
