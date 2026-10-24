@@ -20,6 +20,10 @@ except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
 st.set_page_config(page_title='MusicAdPromo',page_icon='🎵',layout='wide')
 st.title('🎵 MusicAdPromo')
 st.caption('Your song. A cinematic template. Lyrics that move with your vocals.')
+st.caption('Four-template build · Available scenes ('+str(len(TEMPLATES))+'): '+', '.join(x['name'] for x in TEMPLATES.values()))
+if set(TEMPLATES) != {'racecars','dreamscape','river_skyline','sunset_coast'}:
+ st.error('An older shared/templates.py is loaded. Replace the shared folder at the repository root with the folder from this ZIP, then reboot the app.')
+ st.stop()
 audio=st.file_uploader('Song',type=['mp3','wav','m4a'])
 lyrics=st.text_area('Hook lyrics (optional)',help='Paste only the lyrics sung in the selected hook. Leave blank for automatic detection.')
 duration=st.slider('Promo length',10,15,12)
