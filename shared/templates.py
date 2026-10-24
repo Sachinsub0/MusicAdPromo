@@ -4,29 +4,41 @@ from functools import lru_cache
 from PIL import Image, ImageDraw
 TEMPLATES={
  'river_skyline':{'name':'River skyline','accent':(105,224,255),'description':'Blue-hour skyline, moving river reflections, cyan karaoke text.'},
+ 'racecars':{'name':'Neon racecars','accent':(255,114,74),'description':'Animated sports cars, neon highway, bold orange karaoke text.'},
+ 'sunset_coast':{'name':'Sunset coast','accent':(255,204,137),'description':'Golden sunset, ocean waves, warm peach karaoke text.'},
  'dreamscape':{'name':'Moonlit dreamscape','accent':(225,166,255),'description':'Moonlit mountains, drifting stars, lilac karaoke text.'},
 }
 def recommend(creative,timeline,lyrics=''):
- # Temporary controlled baseline: keep classification independent of visuals.
- # Both obvious aggressive/car songs and sad songs get Moonlit dreamscape.
+ # Current lyrics override stale plans; otherwise reuse the existing analysis.
  if lyrics.strip():
   from shared.mood import analyze_lyrics
   creative=analyze_lyrics(lyrics,timeline)
+ primary=creative.get('primary_mood')
+ mapping={'confident':'racecars','dark':'racecars','aggressive':'racecars',
+          'celebratory':'sunset_coast','hopeful':'sunset_coast',
+          'romantic':'sunset_coast','melancholic':'dreamscape','sad':'dreamscape',
+          'dreamy':'dreamscape','longing':'dreamscape','moody':'river_skyline'}
+ if primary in mapping:return mapping[primary]
  moods=set(creative.get('mood',[]))
- known={'melancholic','sad','dark','angry','aggressive','energetic','confident',
-        'celebratory','romantic','longing','dreamy','hopeful'}
- if creative.get('primary_mood') in known or moods & known:return 'dreamscape'
+ if moods & {'melancholic','sad','longing'}:return 'dreamscape'
+ if moods & {'dark','aggressive','angry','confident','energetic'}:return 'racecars'
+ if moods & {'romantic','celebratory','hopeful','uplifting'}:return 'sunset_coast'
+ if 'dreamy' in moods:return 'dreamscape'
  return 'river_skyline'
 @lru_cache(maxsize=12)
 def _base(name,w,h):
- colors={'river_skyline':((12,16,44),(57,42,81)),'racecars':((12,8,32),(54,15,52)),'dreamscape':((13,12,43),(55,34,85))}
+ colors={'sunset_coast':((85,43,94),(255,169,106)),'river_skyline':((12,16,44),(57,42,81)),'racecars':((12,8,32),(54,15,52)),'dreamscape':((13,12,43),(55,34,85))}
  top,bottom=colors[name];im=Image.new('RGB',(w,h));d=ImageDraw.Draw(im)
  for y in range(h):
   f=y/h;d.line((0,y,w,y),fill=tuple(int(a+(b-a)*f) for a,b in zip(top,bottom)))
  rng=random.Random(42)
  for _ in range(75):
   x,y=rng.randrange(w),rng.randrange(int(h*.5));d.ellipse((x,y,x+1,y+1),fill=(156,161,200))
- if name=='river_skyline':
+ if name=='sunset_coast':
+  d.ellipse((w*.32,h*.29,w*.68,h*.29+w*.36),fill=(255,218,146))
+  d.rectangle((0,h*.53,w,h),fill=(39,66,86))
+  d.polygon([(0,h*.87),(w*.42,h*.93),(w,h*.88),(w,h),(0,h)],fill=(40,35,53))
+ elif name=='river_skyline':
   d.ellipse((w*.68,h*.13,w*.82,h*.13+w*.14),fill=(241,201,178))
   for x in range(-10,w,29):
    height=rng.randint(60,210);y=h*.48-height
@@ -46,7 +58,17 @@ def _base(name,w,h):
 def frame(name,t,beat=0,w=540,h=960):
  if name not in TEMPLATES:raise ValueError('Unknown visual template')
  im=_base(name,w,h).copy();d=ImageDraw.Draw(im);accent=TEMPLATES[name]['accent']
- if name=='river_skyline':
+ if name=='sunset_coast':
+  for i in range(38):
+   y=h*.55+i*h*.009
+   x=(i*41+math.sin(t*.65+i)*25)%w
+   d.line((x,y,x+20+i*.9,y),fill=(100+i%4*15,113+i%5*12,115+i%3*13),width=2)
+  for i in range(9):
+   y=h*.54+i*h*.025
+   half=w*.14*(1-i/12)
+   offset=math.sin(t+i)*9
+   d.line((w/2-half+offset,y,w/2+half+offset,y),fill=accent,width=2)
+ elif name=='river_skyline':
   for i in range(48):
    y=h*.51+i*h*.010;x=(i*47+math.sin(t*.8+i)*20)%w
    length=12+i*.8;d.line((x,y,x+length,y),fill=(28+i%4*12,67+i%5*9,89+i%6*9),width=2)

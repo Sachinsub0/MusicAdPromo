@@ -87,27 +87,6 @@ if p:
  else:
   st.warning('Lyric mood analysis needs the updated shared/director.py and shared/mood.py files. Deploy them with the frontend, then reboot the app.')
  if choice!='auto':st.caption('Manual scene selected; automatic suggestion: '+TEMPLATES[automatic_template]['name'])
- with st.expander('Compare scenes and check mood results'):
-  st.caption('Temporary baseline: known moods use Moonlit dreamscape. River skyline is the comparison scene. Mood labels are still analyzed separately.')
-  left,right=st.columns(2)
-  left.image(frame('dreamscape',1.5),caption='A · Moonlit dreamscape',width=200)
-  right.image(frame('river_skyline',1.5),caption='B · River skyline',width=200)
-  expected=st.selectbox('What mood do you hear?', ['melancholic','romantic','dreamy','confident','celebratory','dark','unclear'])
-  preferred=st.radio('Which scene fits better?', ['A · Moonlit dreamscape','B · River skyline','Neither'],horizontal=True)
-  st.caption('Compare the same lyric excerpt. Save one result per song/hook; repeated saves replace that entry. These are session results, not a randomized listening study.')
-  if st.button('Save comparison result'):
-   sample=hashlib.sha256((str(source_key)+str(p['clip_start'])+reviewed).encode()).hexdigest()
-   rows=st.session_state.setdefault('mood_comparisons',{})
-   rows[sample]={'sample':sample,'method':preview_creative.get('mood_method','unknown'),
-    'predicted':preview_creative.get('primary_mood','unknown'),'expected':expected,'preferred_scene':preferred}
-  rows=list(st.session_state.get('mood_comparisons',{}).values())
-  if rows:
-   coverage=sum(x['method']=='semantic_ai' for x in rows)/len(rows)
-   accuracy=sum(x['predicted']==x['expected'] for x in rows)/len(rows)
-   st.write(f'{len(rows)} reviewed excerpts · AI analysis coverage: {coverage:.0%} (target 90%) · Mood agreement: {accuracy:.0%}')
-   import csv,io
-   report=io.StringIO();writer=csv.DictWriter(report,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
-   st.download_button('Download comparison results',report.getvalue(),'mood-comparisons.csv','text/csv')
  st.caption(TEMPLATES[selected]['name']+' · '+TEMPLATES[selected]['description'])
  st.image(frame(selected,1.5),width=270)
  if duration!=p['duration']:st.info('Analyze again to apply the new promo length.')

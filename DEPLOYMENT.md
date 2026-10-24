@@ -30,8 +30,7 @@ API usage charges apply. Set LYRIC_MOOD_AI="false" for offline-only analysis.
 The UI identifies the active method and reports fallback when the key is absent,
 the service fails, or AI is uncertain. Successful results are cached in memory;
 edited lyrics receive new analysis. Review transcription before choosing a mood.
-The existing three scenes remain: melancholic/dark → River skyline;
-romantic/dreamy → Moonlit dreamscape; confident/celebratory → Neon racecars.
+The four scenes are mapped as listed in FOUR_TEMPLATES.md.
 Distinct moods can share a scene. AI is probabilistic; manual selection remains.
 
 ## Consistent mood display fix
@@ -40,7 +39,8 @@ Only lyric edits trigger a new analysis. Both mood displays and automatic scene
 selection use that same result. Include the NEW shared/preview.py when deploying.
 Reboot Streamlit and restart the backend, then Analyze song again.
 
-## Latest: temporary Moonlit baseline
-This supersedes the earlier three-scene mapping: Neon racecars is removed from
-available scenes, and all recognized moods temporarily select Moonlit dreamscape.
-Read MOOD_TESTING.md for setup, comparison controls, and the 90% coverage target.
+
+## Latest: four templates
+Deploy frontend/app.py, backend/main.py and all shared files together.
+The comparison panel and results CSV export have been removed. Mood analysis
+remains enabled as configured. See FOUR_TEMPLATES.md for current routing.

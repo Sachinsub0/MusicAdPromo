@@ -15,13 +15,13 @@ class MoodTests(unittest.TestCase):
         self.assertEqual(creative['mood_source'], 'lyrics')
 
     def test_romance_on_loud_audio(self):
-        self.assertEqual(self.pick('I love you, hold me close and kiss me')[1], 'dreamscape')
+        self.assertEqual(self.pick('I love you, hold me close and kiss me')[1], 'sunset_coast')
 
     def test_confidence_on_quiet_audio(self):
-        self.assertEqual(self.pick('Getting paid, I made it, winning on top', .1)[1], 'dreamscape')
+        self.assertEqual(self.pick('Getting paid, I made it, winning on top', .1)[1], 'racecars')
 
     def test_party_and_hope(self):
-        self.assertEqual(self.pick('Dance and celebrate all night')[1], 'dreamscape')
+        self.assertEqual(self.pick('Dance and celebrate all night')[1], 'sunset_coast')
         self.assertEqual(self.pick('Better days, healing, find my peace')[1], 'dreamscape')
 
     def test_punctuation_contractions_and_negation(self):

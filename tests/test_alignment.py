@@ -24,9 +24,9 @@ class AlignmentTests(unittest.TestCase):
    rows,meta=align_words('fake',0,2,'new words added')
   self.assertEqual(capture[0]['text'],'new words added');self.assertEqual([w['word'] for w in rows],['new','words','added']);self.assertTrue(rows[-1]['estimated'])
  def test_template_routing_and_animation(self):
-  self.assertEqual(recommend({'mood':['energetic']},{},''),'dreamscape')
-  self.assertEqual(recommend({'mood':['romantic']},{},''),'dreamscape')
-  self.assertEqual(recommend({'mood':['dark']},{},''),'dreamscape')
-  for name in ['river_skyline','dreamscape']:
+  self.assertEqual(recommend({'mood':['energetic']},{},''),'racecars')
+  self.assertEqual(recommend({'mood':['romantic']},{},''),'sunset_coast')
+  self.assertEqual(recommend({'mood':['dark']},{},''),'racecars')
+  for name in ['river_skyline','dreamscape','racecars','sunset_coast']:
    self.assertNotEqual(frame(name,0).tobytes(),frame(name,1).tobytes())
 if __name__=='__main__':unittest.main()
