@@ -8,6 +8,10 @@ class FourTemplatesTests(unittest.TestCase):
   self.assertEqual(set(TEMPLATES),{'racecars','dreamscape','river_skyline','sunset_coast'})
   for mood,scene in [('dark','racecars'),('confident','racecars'),('melancholic','dreamscape'),('dreamy','dreamscape'),('romantic','sunset_coast'),('celebratory','sunset_coast'),('moody','river_skyline')]:
    self.assertEqual(recommend({'primary_mood':mood},{}),scene)
+ def test_sunset_coast_multiple_sizes(self):
+  for width,height in [(270,480),(540,960),(720,1280)]:
+   for time in [0,1.5,8.0]:
+    self.assertEqual(frame("sunset_coast",time,w=width,h=height).size,(width,height))
  def test_every_scene_animates(self):
   for name in TEMPLATES:
    self.assertEqual(frame(name,0).size,(540,960))

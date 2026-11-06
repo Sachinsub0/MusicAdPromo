@@ -30,6 +30,22 @@ duration=st.slider('Promo length',10,15,12)
 source_key=hashlib.sha256(audio.getvalue()).hexdigest() if audio else None
 if st.session_state.get('source_key') != source_key:
  st.session_state.update(source_key=source_key,plan=None,video=None)
+def backend_supports(scene):
+ try:
+  response=requests.get(B+'/health',timeout=20)
+  response.raise_for_status()
+  data=response.json()
+  supported=data.get('templates',[])
+  if scene not in supported:
+   st.error(f'The backend does not support {TEMPLATES[scene]["name"]} yet. '
+            'Deploy backend/main.py and shared/templates.py to Render, restart the service, '
+            'and try again. Backend scenes: '+(', '.join(supported) or 'none reported'))
+   return False
+  return True
+ except (requests.RequestException,ValueError) as exc:
+  st.error(f'Unable to verify the backend templates: {exc}')
+  return False
+
 def analyze(start=None,lyrics_override=None):
  data={'lyrics':lyrics if lyrics_override is None else lyrics_override,'duration':duration}
  if start is not None:data['selected_start']=start
@@ -96,6 +112,7 @@ if p:
  if duration!=p['duration']:st.info('Analyze again to apply the new promo length.')
  if st.button('Render lyric video',type='primary',use_container_width=True,disabled=dirty or not shown or duration!=p['duration']):
   try:
+   if not backend_supports(selected):st.stop()
    render_plan={**p,'template':selected,'creative':preview_creative}
    with st.spinner('Rendering animated template and synced lyrics…'):
     r=requests.post(B+'/render',files={'audio':(audio.name,audio.getvalue(),audio.type)},data={'plan_json':json.dumps(render_plan)},timeout=1800)
