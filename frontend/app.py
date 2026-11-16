@@ -1,15 +1,18 @@
 import os,sys,io,json,requests,streamlit as st
 import pandas as pd
 sys.path.insert(0,os.path.dirname(os.path.dirname(__file__)))
-from shared.alignment_v7 import approximate_alignment
+from shared.alignment_v7 import approximate_alignment,preserve_alignment_on_edit
 
 st.set_page_config(page_title='MusicAdPromo v7',page_icon='🎵',layout='wide')
 st.title('🎵 MusicAdPromo v7')
 st.caption('Choose the hook. Correct the lyrics. Create your promo.')
 BASE=os.environ.get('BACKEND_URL','http://127.0.0.1:8000').rstrip('/')
-audio=st.file_uploader('Upload your song',type=['mp3','wav','m4a'])
+audio=st.file_uploader('Upload your song (up to 200 MB)',type=['mp3','wav','m4a'])
 duration=st.slider('Promo duration (seconds)',10,25,15)
 if not audio:st.stop()
+if audio.size>200*1024*1024:
+    st.error(f'Song is {audio.size/1024/1024:.1f} MB; maximum is 200 MB.')
+    st.stop()
 raw=audio.getvalue();name=audio.name
 key=(name,len(raw),duration)
 if st.session_state.get('song_key')!=key:
@@ -85,10 +88,10 @@ if hooks:
         if new_tokens==old_tokens:
             st.info('Lyrics already match the timing rows.')
         else:
-            st.session_state.timings=approximate_alignment(lyrics,duration)
+            st.session_state.timings=preserve_alignment_on_edit(existing,lyrics,duration)
             st.session_state.timings_lyrics=lyrics
             st.session_state.pop('rendered_mp4',None)
-            st.warning('Text changes applied. Timings are now approximate placeholders. Adjust the word timings below before generating your MP4.')
+            st.warning('Text changes applied. Existing word timings were preserved where possible; newly inserted words have estimated timings. Review them before rendering.')
             st.rerun()
     if 'timings' in st.session_state:
         st.subheader('Review and edit word timing')

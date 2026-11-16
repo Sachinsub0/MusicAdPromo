@@ -119,7 +119,13 @@ def _lyrics_frame(im,words,t):
             bbox=d.textbbox((0,0),token,font=font)
             tw=bbox[2]
             if idx==nearest:
+                # Preserve the entire actual sung duration (including long
+                # held vowels). The underline fills across that duration.
+                w=words[idx]
+                span=max(0.001,float(w['end'])-float(w['start']))
+                progress=max(0.0,min(1.0,(t-float(w['start']))/span))
                 d.rounded_rectangle((x-5,y-2,x+tw+5,y+line_height-3),radius=5,outline=(255,105,65,255),width=2)
+                d.rounded_rectangle((x,y+line_height-7,x+max(2,int(tw*progress)),y+line_height-3),radius=2,fill=(255,122,68,255))
                 color=(255,111,72,255)
             else:color=(238,236,242,255)
             d.text((x,y),token,font=font,fill=color,stroke_width=1,stroke_fill=(8,6,18,230))

@@ -8,11 +8,18 @@ from shared.audio import load_audio,propose_hooks,clip_audio,wav_bytes
 from shared.alignment_v7 import align_clip,validate_words
 
 app=FastAPI(title='MusicAdPromo v7 API')
-MAX_BYTES=30*1024*1024
+MAX_BYTES=200*1024*1024
 
 async def receive(audio):
-    data=await audio.read(MAX_BYTES+1)
-    if len(data)>MAX_BYTES:raise HTTPException(413,'Audio file exceeds 30MB')
+    # UploadFile is a SpooledTemporaryFile: check its size without reading
+    # an oversized upload into another large bytes object.
+    await audio.seek(0)
+    audio.file.seek(0, os.SEEK_END)
+    size=audio.file.tell()
+    await audio.seek(0)
+    if size>MAX_BYTES:
+        raise HTTPException(413,f'Audio file exceeds 200 MB ({size/1024/1024:.1f} MB received)')
+    data=await audio.read()
     try:return load_audio(data, filename=audio.filename or "upload.mp3")
     except Exception as e:raise HTTPException(422,f'Unable to decode audio: {e}')
 
