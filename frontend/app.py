@@ -57,9 +57,6 @@ if hooks:
         if r is not None:st.audio(r.content,format='audio/wav')
     st.subheader('Transcribed lyrics — editable')
     st.caption('Transcribe first, then fix any missed or incorrect words directly in the box. You can also paste your own lyrics.')
-    lyrics=st.text_area('Lyrics for selected section',key='lyric_text',height=180,
-                        placeholder='Transcribed lyrics appear here. Edit them freely, or paste your own.',
-                        help='You can edit any words, including non-English lyrics. Apply changes to refresh timing rows.')
     language=st.text_input('Language code (optional, e.g. es, hi, en)',value='')
     if st.button('Transcribe selected clip with word timestamps'):
         with st.spinner('Running Whisper...'):
@@ -75,6 +72,9 @@ if hooks:
                 st.warning(result.get('warning','Review the transcription and timings.'))
                 st.caption('Detected language: '+str(result.get('detected_language','unknown')))
                 st.rerun()
+    lyrics=st.text_area('Lyrics for selected section',key='lyric_text',height=180,
+                        placeholder='Transcribed lyrics appear here. Edit them freely, or paste your own.',
+                        help='You can edit any words, including non-English lyrics. Apply changes to refresh timing rows.')
     if st.button('Apply edited lyrics to timing rows',disabled=not lyrics.strip()):
         # Edits to words cannot be assumed to preserve exact timestamps. Generate
         # an explicitly approximate draft for manual correction, never silently
