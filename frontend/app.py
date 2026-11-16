@@ -1,4 +1,4 @@
-import os,sys,io,requests,streamlit as st
+import os,sys,io,json,requests,streamlit as st
 import pandas as pd
 sys.path.insert(0,os.path.dirname(os.path.dirname(__file__)))
 from shared.alignment_v7 import approximate_alignment
@@ -17,6 +17,7 @@ if st.session_state.get('song_key')!=key:
     st.session_state.pop('hooks',None)
     st.session_state.pop('timings',None)
     st.session_state.pop('selection',None)
+    st.session_state.pop('rendered_mp4',None)
 
 def send(path,fields):
     try:
@@ -77,5 +78,19 @@ if hooks:
                 st.download_button('Download corrected timings',data=response.text,file_name='lyric_timings.json',mime='application/json')
             except Exception as e:st.error(f'Invalid timings: {e}')
     st.divider()
-    st.info('Video rendering and the four original scene templates require integration with your existing MusicAdPromo renderer. This standalone v7 module does not replace that renderer.')
+    st.subheader('Create your lyric promo')
+    template_names={'neon_racecars':'Neon Racecars','skyline':'Skyline','nightclub':'Nightclub','sunset_coast':'Sunset Coast'}
+    template=st.selectbox('Cinematic template',list(template_names),format_func=lambda x:template_names[x])
+    if st.button('Generate MP4 video',type='primary'):
+        words=[]
+        if 'timings' in st.session_state:
+            words=edited.to_dict('records')
+        with st.spinner('Rendering your MP4 clip (may take a minute)...'):
+            r=send('/v7/render',{'start':start,'duration':duration,'template':template,'words_json':json.dumps(words)})
+            if r is not None:
+                st.session_state.rendered_mp4=r.content
+                st.session_state.rendered_key=(name,len(raw),duration,start,template)
+    if st.session_state.get('rendered_mp4') and st.session_state.get('rendered_key')==(name,len(raw),duration,start,template):
+        st.video(st.session_state.rendered_mp4)
+        st.download_button('Download MP4',data=st.session_state.rendered_mp4,file_name='MusicAdPromo-v7.mp4',mime='video/mp4')
 else:st.caption('Click Find five recommended sections to begin.')

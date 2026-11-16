@@ -1,6 +1,8 @@
 import os,tempfile
 from fastapi import FastAPI,UploadFile,File,Form,HTTPException
 from fastapi.responses import Response
+import json
+from shared.render_v7 import render_mp4,TEMPLATES
 from pydantic import BaseModel
 from shared.audio import load_audio,propose_hooks,clip_audio,wav_bytes
 from shared.alignment_v7 import align_clip,validate_words
@@ -51,3 +53,24 @@ class TimingPayload(BaseModel):
 def validate_timings(payload:TimingPayload):
     try:return {'words':validate_words(payload.words,payload.duration)}
     except (ValueError,KeyError,TypeError) as e:raise HTTPException(422,str(e))
+
+@app.get('/v7/templates')
+def templates():
+    return {'templates':TEMPLATES}
+
+@app.post('/v7/render')
+async def render(audio:UploadFile=File(...),start:float=Form(...),duration:int=Form(15),template:str=Form('skyline'),words_json:str=Form('[]')):
+    if not 10<=duration<=25:raise HTTPException(422,'Duration must be 10–25 seconds')
+    if template not in TEMPLATES:raise HTTPException(422,'Invalid scene template')
+    try:
+        words=json.loads(words_json)
+        if not isinstance(words,list):raise ValueError('words_json must be a list')
+        words=validate_words(words,duration)
+    except (ValueError,TypeError,KeyError) as exc:raise HTTPException(422,f'Invalid lyric timings: {exc}')
+    y,sr=await receive(audio)
+    try:
+        segment=clip_audio(y,sr,start,duration)
+        data=render_mp4(segment,sr,template,words)
+    except ValueError as exc:raise HTTPException(422,str(exc))
+    except Exception as exc:raise HTTPException(500,f'Video rendering failed: {exc}')
+    return Response(content=data,media_type='video/mp4',headers={'Content-Disposition':'attachment; filename="musicadpromo-v7.mp4"'})
