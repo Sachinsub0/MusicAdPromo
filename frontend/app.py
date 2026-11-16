@@ -18,6 +18,8 @@ if st.session_state.get('song_key')!=key:
     st.session_state.pop('timings',None)
     st.session_state.pop('selection',None)
     st.session_state.pop('rendered_mp4',None)
+    st.session_state.pop('lyric_text',None)
+    st.session_state.pop('timings_lyrics',None)
 
 def send(path,fields):
     try:
@@ -53,23 +55,47 @@ if hooks:
     if st.button('Preview selected audio'):
         r=send('/v7/preview',{'start':start,'duration':duration})
         if r is not None:st.audio(r.content,format='audio/wav')
-    lyrics=st.text_area('Correct lyrics for this section (optional)',height=120,
-                        help='Paste exact lyrics, including non-English scripts. Whisper does not reliably force-align these yet.')
+    st.subheader('Transcribed lyrics — editable')
+    st.caption('Transcribe first, then fix any missed or incorrect words directly in the box. You can also paste your own lyrics.')
+    lyrics=st.text_area('Lyrics for selected section',key='lyric_text',height=180,
+                        placeholder='Transcribed lyrics appear here. Edit them freely, or paste your own.',
+                        help='You can edit any words, including non-English lyrics. Apply changes to refresh timing rows.')
     language=st.text_input('Language code (optional, e.g. es, hi, en)',value='')
     if st.button('Transcribe selected clip with word timestamps'):
         with st.spinner('Running Whisper...'):
-            r=send('/v7/align',{'start':start,'duration':duration,'lyrics':lyrics,'language':language})
+            r=send('/v7/align',{'start':start,'duration':duration,'lyrics':'','language':language})
             if r is not None:
-                result=r.json();st.session_state.timings=result['words']
-                st.warning(result['warning'])
-                st.caption('Detected language: '+str(result['detected_language']))
-    if lyrics and st.button('Create rough editable timing draft from supplied lyrics'):
-        st.session_state.timings=approximate_alignment(lyrics,duration)
-        st.warning('These are evenly spaced placeholders, NOT audio-aligned timings. Edit before rendering.')
+                result=r.json()
+                words=result.get('words',[])
+                st.session_state.timings=words
+                transcribed=' '.join(w['word'] for w in words)
+                st.session_state.lyric_text=transcribed
+                st.session_state.timings_lyrics=transcribed
+                st.session_state.pop('rendered_mp4',None)
+                st.warning(result.get('warning','Review the transcription and timings.'))
+                st.caption('Detected language: '+str(result.get('detected_language','unknown')))
+                st.rerun()
+    if st.button('Apply edited lyrics to timing rows',disabled=not lyrics.strip()):
+        # Edits to words cannot be assumed to preserve exact timestamps. Generate
+        # an explicitly approximate draft for manual correction, never silently
+        # retain timings for words that no longer match the text box.
+        existing=st.session_state.get('timings',[])
+        new_tokens=lyrics.split()
+        old_tokens=[w['word'] for w in existing]
+        if new_tokens==old_tokens:
+            st.info('Lyrics already match the timing rows.')
+        else:
+            st.session_state.timings=approximate_alignment(lyrics,duration)
+            st.session_state.timings_lyrics=lyrics
+            st.session_state.pop('rendered_mp4',None)
+            st.warning('Text changes applied. Timings are now approximate placeholders. Adjust the word timings below before generating your MP4.')
+            st.rerun()
     if 'timings' in st.session_state:
         st.subheader('Review and edit word timing')
         df=pd.DataFrame(st.session_state.timings,columns=['word','start','end'])
         edited=st.data_editor(df,num_rows='dynamic',hide_index=True,key='editor')
+        if lyrics.split()!=[str(w) for w in edited['word'].tolist()]:
+            st.warning('The lyrics text box and timing rows differ. Click “Apply edited lyrics to timing rows” before rendering.')
         if st.button('Validate and export timing JSON'):
             try:
                 rows=edited.to_dict('records')
@@ -85,6 +111,9 @@ if hooks:
         words=[]
         if 'timings' in st.session_state:
             words=edited.to_dict('records')
+            if lyrics.split()!=[str(w['word']) for w in words]:
+                st.error('Apply your edited lyrics to timing rows before rendering, so the MP4 uses the correct text.')
+                st.stop()
         with st.spinner('Rendering your MP4 clip (may take a minute)...'):
             r=send('/v7/render',{'start':start,'duration':duration,'template':template,'words_json':json.dumps(words)})
             if r is not None:
