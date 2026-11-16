@@ -1,33 +1,53 @@
-from __future__ import annotations
-import os,sys,tempfile,uuid,json
+import os,tempfile
 from fastapi import FastAPI,UploadFile,File,Form,HTTPException
-from fastapi.responses import FileResponse
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from shared.audio import rank_hooks,timeline
-from shared.alignment import align_words
-from shared.director import understand,decorate,image_prompt
-from shared.renderer import render
-from shared.templates import recommend, TEMPLATES
-app=FastAPI(title="MusicAdPromo v6");OUT=os.path.join(tempfile.gettempdir(),"mapv6");os.makedirs(OUT,exist_ok=True)
-def save(u,b):
- ext=os.path.splitext(u.filename or "x")[1] or ".bin";p=os.path.join(OUT,uuid.uuid4().hex+ext);open(p,"wb").write(b);return p
-@app.get("/health")
-def health():return {"status":"ok","version":"MusicAdPromo-v6.7-sunset-coast-verified","templates":list(TEMPLATES)}
-@app.post("/analyze")
-async def analyze(audio:UploadFile=File(...),lyrics:str=Form(""),duration:int=Form(12),selected_start:float|None=Form(None)):
- raw=await audio.read();p=save(audio,raw);c=rank_hooks(p,duration);start=float(selected_start if selected_start is not None else c[0]["start"]);tl=timeline(p,start,duration)
- words,transcription=align_words(p,start,duration,lyrics)
- detected_lyrics=" ".join(w["word"] for w in words)
- effective_lyrics=lyrics.strip() or detected_lyrics
- creative=understand(effective_lyrics,tl);words=decorate(words,tl)
- return {"schema_version":"templates-v1","clip_start":start,"duration":duration,"candidates":c,"timeline":tl,"creative":creative,"words":words,"detected_lyrics":detected_lyrics,"transcription":transcription,"image_prompt":image_prompt(creative),"template":recommend(creative,tl)}
-@app.post("/render")
-async def make(audio:UploadFile=File(...),plan_json:str=Form(...),background:UploadFile|None=File(None)):
- ap=save(audio,await audio.read());bp=None
- if background:bp=save(background,await background.read())
- plan=json.loads(plan_json)
- if plan.get("template") not in TEMPLATES:raise HTTPException(422,"Select a valid visual template")
- if " ".join(w["word"] for w in plan["words"]) != " ".join(plan.get("detected_lyrics", "").split()):raise HTTPException(422,"Lyrics and alignment differ. Re-align before rendering.")
- out=os.path.join(OUT,uuid.uuid4().hex+".mp4");render(plan,ap,out,bp);return {"video_id":os.path.basename(out)}
-@app.get("/video/{vid}")
-def vid(vid:str):return FileResponse(os.path.join(OUT,os.path.basename(vid)),media_type="video/mp4",filename="musicadpromo-v6.mp4")
+from fastapi.responses import Response
+from pydantic import BaseModel
+from shared.audio import load_audio,propose_hooks,clip_audio,wav_bytes
+from shared.alignment_v7 import align_clip,validate_words
+
+app=FastAPI(title='MusicAdPromo v7 API')
+MAX_BYTES=30*1024*1024
+
+async def receive(audio):
+    data=await audio.read(MAX_BYTES+1)
+    if len(data)>MAX_BYTES:raise HTTPException(413,'Audio file exceeds 30MB')
+    try:return load_audio(data)
+    except Exception as e:raise HTTPException(422,f'Unable to decode audio: {e}')
+
+@app.get('/health')
+def health():return {'status':'ok','version':'7-starter'}
+
+@app.post('/v7/hooks')
+async def hooks(audio:UploadFile=File(...),duration:int=Form(15)):
+    if not 10<=duration<=25:raise HTTPException(422,'Duration must be 10–25 seconds')
+    y,sr=await receive(audio)
+    try:choices=propose_hooks(y,sr,duration)
+    except ValueError as e:raise HTTPException(422,str(e))
+    return {'duration':round(len(y)/sr,2),'hooks':choices,'method':'RMS + onset heuristic'}
+
+@app.post('/v7/preview')
+async def preview(audio:UploadFile=File(...),start:float=Form(...),duration:int=Form(15)):
+    y,sr=await receive(audio)
+    try:segment=clip_audio(y,sr,start,duration)
+    except ValueError as e:raise HTTPException(422,str(e))
+    return Response(wav_bytes(segment,sr),media_type='audio/wav')
+
+@app.post('/v7/align')
+async def align(audio:UploadFile=File(...),start:float=Form(...),duration:int=Form(15),lyrics:str=Form(''),language:str=Form('')):
+    y,sr=await receive(audio)
+    try:segment=clip_audio(y,sr,start,duration)
+    except ValueError as e:raise HTTPException(422,str(e))
+    with tempfile.NamedTemporaryFile(suffix='.wav',delete=False) as f:
+        f.write(wav_bytes(segment,sr));path=f.name
+    try:return align_clip(path,lyrics,language)
+    except RuntimeError as e:raise HTTPException(503,str(e))
+    finally:os.unlink(path)
+
+class TimingPayload(BaseModel):
+    duration:float
+    words:list[dict]
+
+@app.post('/v7/validate-timings')
+def validate_timings(payload:TimingPayload):
+    try:return {'words':validate_words(payload.words,payload.duration)}
+    except (ValueError,KeyError,TypeError) as e:raise HTTPException(422,str(e))

@@ -1,24 +1,56 @@
-from __future__ import annotations
-import librosa,numpy as np
-def rank_hooks(path,duration=12,top_k=5):
- y,sr=librosa.load(path,sr=22050,mono=True);hop=512;rms=librosa.feature.rms(y=y,hop_length=hop)[0];oe=librosa.onset.onset_strength(y=y,sr=sr,hop_length=hop);win=max(1,int(duration*sr/hop))
- def roll(x):return np.array([x.mean()]) if len(x)<win else np.convolve(x,np.ones(win)/win,mode="valid")
- def norm(x):return (x-x.min())/(x.max()-x.min()+1e-9)
- score=.55*norm(roll(rms))+.45*norm(roll(oe));out=[]
- for i in np.argsort(score)[::-1]:
-  s=float(i*hop/sr)
-  if all(abs(s-x["start"])>duration*.65 for x in out):out.append({"start":round(s,3),"end":round(s+duration,3),"score":round(float(score[i]),3)})
-  if len(out)>=top_k:break
- return out
-def timeline(path,start,duration):
- y,sr=librosa.load(path,sr=22050,mono=True,offset=start,duration=duration);hop=256
- oe=librosa.onset.onset_strength(y=y,sr=sr,hop_length=hop)
- tempo,beats=librosa.beat.beat_track(onset_envelope=oe,sr=sr,hop_length=hop,units="time",trim=False)
- ons=librosa.onset.onset_detect(onset_envelope=oe,sr=sr,hop_length=hop,units="time",backtrack=False)
- # strong onsets only
- frames=librosa.time_to_frames(ons,sr=sr,hop_length=hop);strength=oe[np.clip(frames,0,len(oe)-1)] if len(frames) else np.array([])
- threshold=np.quantile(strength,.65) if len(strength) else 0
- strong=[float(t) for t,v in zip(ons,strength) if v>=threshold]
- rms=librosa.feature.rms(y=y,hop_length=hop)[0];cent=librosa.feature.spectral_centroid(y=y,sr=sr,hop_length=hop)[0]
- return {"tempo_bpm":round(float(np.asarray(tempo).reshape(-1)[0]),2),"beats":[round(float(x),4) for x in beats],"onsets":[round(x,4) for x in strong],
- "energy":round(float(np.clip(rms.mean()/.16,0,1)),2),"brightness":round(float(np.clip(cent.mean()/4500,0,1)),2)}
+import io
+import numpy as np
+import soundfile as sf
+import librosa
+
+def load_audio(data: bytes):
+    try:
+        y, sr = sf.read(io.BytesIO(data), always_2d=True)
+        return y.mean(axis=1).astype(np.float32), sr
+    except Exception:
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as f:
+            f.write(data); path=f.name
+        try:
+            y,sr=librosa.load(path,sr=None,mono=True)
+            return y,sr
+        finally: os.unlink(path)
+
+def propose_hooks(y, sr, duration=15, count=5):
+    total=len(y)/sr
+    if total < duration: raise ValueError('Song is shorter than the requested video duration')
+    hop=512
+    # RMS + onset strength yield a transparent, deterministic ranking (not a trained hook model).
+    rms=librosa.feature.rms(y=y,hop_length=hop)[0]
+    onset=librosa.onset.onset_strength(y=y,sr=sr,hop_length=hop)
+    n=min(len(rms),len(onset)); rms=rms[:n]; onset=onset[:n]
+    rms=rms/(np.max(rms)+1e-8); onset=onset/(np.max(onset)+1e-8)
+    activity=.6*rms+.4*onset
+    step=max(1,int(2*sr/hop)); win=max(1,int(duration*sr/hop))
+    candidates=[]
+    for i in range(0,max(1,n-win+1),step):
+        start=i*hop/sr
+        if start+duration > total: continue
+        score=float(np.mean(activity[i:i+win]))
+        candidates.append((score,start))
+    candidates.sort(reverse=True)
+    selected=[]
+    for score,start in candidates:
+        if all(abs(start-prev['start'])>=duration*.6 for prev in selected):
+            selected.append({'start':round(start,2),'end':round(start+duration,2),'score':round(score,3)})
+        if len(selected)==count: break
+    # Very short songs may not fit five non-overlapping candidates: fill with spaced alternatives.
+    if len(selected)<count:
+        for start in np.linspace(0,total-duration,count*3):
+            if all(abs(start-prev['start'])>0.5 for prev in selected):
+                selected.append({'start':round(float(start),2),'end':round(float(start+duration),2),'score':None})
+            if len(selected)==count: break
+    return selected
+
+def clip_audio(y,sr,start,duration):
+    if start<0 or duration<10 or duration>25 or start+duration>len(y)/sr+0.01:
+        raise ValueError('Invalid selection: choose 10–25 seconds within the song')
+    return y[round(start*sr):round((start+duration)*sr)]
+
+def wav_bytes(y,sr):
+    b=io.BytesIO();sf.write(b,y,sr,format='WAV',subtype='PCM_16');return b.getvalue()

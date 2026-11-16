@@ -1,79 +1,38 @@
-# MusicAdPromo v6.3 — Templates + editable lyric alignment
+# MusicAdPromo v7 — integration starter
 
-Upload a song, analyze a 10–15 second hook, review its lyrics, and render a vertical animated lyric video. No background upload or external image service is required.
+This is a **working standalone prototype of the new selection and alignment workflow**, not a modification of the original project. The latest four-template source ZIP was unavailable. It does **not** render MP4s or preserve the original scene renderer by itself.
 
-## What changed
-- Three bundled, code-drawn animated templates: **River skyline**, **Neon racecars**, and **Moonlit dreamscape**. These are stylized illustrations, not photographic footage.
-- Automatic template selection uses the existing lyric mood/keyword analysis and acoustic energy. You can override the selection before rendering. Mood classification is a lightweight heuristic, not a trained emotion classifier.
-- Accent-colored active words, outlined highlight tiles, beat pulses, and semantic motion. Upcoming and previous words remain visible within the current phrase, with responsive wrapping.
-- Editing Detected lyrics immediately updates every word in Alignment check, including insertions and deletions. Changed spans show provisional estimated timing.
-- **Re-align corrected lyrics** passes the exact hook text to WhisperX forced alignment. Rendering is disabled while unsaved lyric edits are pending. The backend also rejects a mismatch between lyrics and alignment words.
-- Untimed words are retained and labeled Estimated. Their times are interpolated between measured anchors; review these before exporting. Forced alignment does not guarantee accuracy for sung vocals or incorrect lyrics.
+## Features
+- Duration selector: 10–25 seconds
+- Up to five recommended sections using RMS/onset activity heuristic (not an LLM or learned hook ranking)
+- Manual start-time selector, preview of chosen clip
+- Whisper transcription with word timestamps (optional dependency)
+- Multilingual language code option; accuracy varies by language/audio quality
+- Editable word timestamps, validation and JSON export
+- Explicit fallback for user-supplied lyrics (uniform timing placeholders, **not** forced alignment)
 
-## Run locally
-Use Python 3.11 and install ffmpeg (`brew install ffmpeg` on macOS).
-
+## Run
+From project root:
 ```bash
-cd MusicAdPromo
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
 pip install -r requirements.txt
-python -m uvicorn backend.main:app --reload
+# For automatic Whisper transcription: pip install faster-whisper
+uvicorn backend.main:app --host 0.0.0.0 --port 8000
+# in another terminal:
+streamlit run frontend/app.py
 ```
+Set `BACKEND_URL` for remote backend. Render start command should run from repo root so `shared` imports work.
 
-In another terminal:
+## Merge into existing app
+1. Copy `shared/audio.py` and `shared/alignment_v7.py` into existing `shared/`.
+2. Copy the `/v7/*` routes from `backend/main.py` into your existing FastAPI app (do not replace existing routes).
+3. Integrate the selection UI from `frontend/app.py` into your existing Streamlit UI; preserve four original templates and existing render endpoint.
+4. Feed selected `start`, `duration`, and corrected word timings into existing rendering code. If render uses absolute timestamps, add `start` to relative clip timestamps exactly once.
+5. Add optional forced-alignment model if verified word-level alignment of supplied lyrics is required. Whisper alone does not provide that guarantee.
 
-```bash
-cd MusicAdPromo
-source .venv/bin/activate
-python -m streamlit run frontend/app.py
-```
-
-Open http://localhost:8501. First analysis downloads WhisperX and Demucs models. The backend needs enough memory for both. The frontend uses `BACKEND_URL`, defaulting to http://127.0.0.1:8000; set it to your deployed backend URL for Streamlit Cloud.
-
-## Use
-1. Upload your song and click **Analyze song**. Optional supplied lyrics must describe only the selected hook, not the full song.
-2. Review Detected lyrics. Edit misheard words, then click **Re-align corrected lyrics**.
-3. Inspect Alignment check, particularly any Estimated times. Vocal timing controls word highlighting; beats control animation only.
-4. Choose Automatic or a specific visual template, then render.
-
-Changing the uploaded song clears the old plan/video. Changing promo length requires another analysis. Hook candidates can be selected before correcting lyrics.
-
-## Environment
-```bash
-ENABLE_VOCAL_SEPARATION=1
-DEMUCS_MODEL=htdemucs
-WHISPER_MODEL=small
-WHISPER_LANGUAGE=en
-WHISPER_BATCH_SIZE=4
-BACKEND_URL=http://127.0.0.1:8000
-```
-If vocal separation fails, the original mix is used. Output audio always comes from the original song.
-
-## Verification
-```bash
-python -m unittest discover -s tests -v
-```
-Tests cover lyric additions/deletions/repeated words, punctuation and missing timestamps, corrected text passed to forced alignment, and scene selection/animation. A short synthetic-audio render was also checked. Real-song transcription and deployment require testing on your backend; they were not run with a real song in this update.
-
-## Lyric-driven automatic scenes (v6.4)
-
-Automatic mode analyzes lyrics for the selected promo hook (pasted lyrics or
-detected vocals). Sad/reflective and dark lyrics choose River skyline;
-romantic/dreamy/hopeful lyrics choose Moonlit dreamscape;
-confident/celebratory lyrics choose Neon racecars. Clear lyric cues take priority
-over audio energy, including for upbeat heartbreak songs. The preview shows the
-inferred mood and the lyric cues behind it. Correcting lyrics refreshes the scene
-suggestion immediately; re-align corrections before rendering.
-Manual scene selection is still available.
-
-The analyzer runs offline, uses English words and phrases with limited negation
-handling, and needs no new dependencies or API keys. It is a heuristic: sarcasm,
-slang, complex context and other languages may be misread. When there are no
-clear lyric cues it uses a neutral River skyline scene and says so. Audio energy does not decide lyric mood. Mood describes the selected
-hook, not necessarily the whole song.
-
-Deploy `backend/main.py`, the complete `shared/` folder (including `mood.py`),
-and `frontend/app.py` together, then analyze again to refresh existing plans.
-Run checks with `python -m unittest discover -s tests` from the project directory.
+## Known limitations
+- No MP4 render integration without original backend/template source.
+- Song ranking is based on onset/loudness, not semantic 'best hooks'.
+- Muffled/multilingual singing remains challenging; corrected lyrics are not force-aligned.
+- No drag-to-select waveform UI; custom start-time slider provided.
+- `faster-whisper` on a 512MB Render instance may exceed memory; use a separate inference service or higher-memory instance.
+- File size capped at 30MB; upload handling is in-memory.

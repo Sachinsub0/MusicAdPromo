@@ -1,144 +1,74 @@
-import streamlit as st
-import requests, json, os, hashlib, sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from shared.alignment import preview_corrections
-from shared.director import decorate, understand
-from shared.templates import TEMPLATES, frame, recommend
-from shared.preview import preview_mood
-try:
- configured_backend=st.secrets.get('BACKEND_URL')
-except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
- configured_backend=None
-B=(os.environ.get('BACKEND_URL') or configured_backend or 'http://127.0.0.1:8000').rstrip('/')
-# Streamlit secrets are made available to the shared mood analyzer.
-try:
- for setting in ('OPENAI_API_KEY', 'LYRIC_MOOD_MODEL', 'LYRIC_MOOD_AI'):
-  if st.secrets.get(setting) is not None and setting not in os.environ:
-   os.environ[setting]=str(st.secrets[setting])
-except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
- pass
-st.set_page_config(page_title='MusicAdPromo',page_icon='🎵',layout='wide')
-st.title('🎵 MusicAdPromo')
-st.caption('Your song. A cinematic template. Lyrics that move with your vocals.')
-st.caption('Four-template build · Available scenes ('+str(len(TEMPLATES))+'): '+', '.join(x['name'] for x in TEMPLATES.values()))
-if set(TEMPLATES) != {'racecars','dreamscape','river_skyline','sunset_coast'}:
- st.error('An older shared/templates.py is loaded. Replace the shared folder at the repository root with the folder from this ZIP, then reboot the app.')
- st.stop()
-audio=st.file_uploader('Song',type=['mp3','wav','m4a'])
-lyrics=st.text_area('Hook lyrics (optional)',help='Paste only the lyrics sung in the selected hook. Leave blank for automatic detection.')
-duration=st.slider('Promo length',10,15,12)
-source_key=hashlib.sha256(audio.getvalue()).hexdigest() if audio else None
-if st.session_state.get('source_key') != source_key:
- st.session_state.update(source_key=source_key,plan=None,video=None)
-def backend_supports(scene):
- try:
-  response=requests.get(B+'/health',timeout=20)
-  response.raise_for_status()
-  data=response.json()
-  supported=data.get('templates',[])
-  if scene not in supported:
-   st.error(f'The backend does not support {TEMPLATES[scene]["name"]} yet. '
-            'Deploy backend/main.py and shared/templates.py to Render, restart the service, '
-            'and try again. Backend scenes: '+(', '.join(supported) or 'none reported'))
-   return False
-  return True
- except (requests.RequestException,ValueError) as exc:
-  st.error(f'Unable to verify the backend templates: {exc}')
-  return False
+import os,sys,io,requests,streamlit as st
+import pandas as pd
+sys.path.insert(0,os.path.dirname(os.path.dirname(__file__)))
+from shared.alignment_v7 import approximate_alignment
 
-def analyze(start=None,lyrics_override=None):
- data={'lyrics':lyrics if lyrics_override is None else lyrics_override,'duration':duration}
- if start is not None:data['selected_start']=start
- try:
-  with st.spinner('Analyzing vocals and aligning lyrics…'):
-   r=requests.post(B+'/analyze',files={'audio':(audio.name,audio.getvalue(),audio.type)},data=data,timeout=1800)
-  if r.ok:
-   st.session_state.plan=r.json();st.session_state.video=None
-   st.session_state.revision=st.session_state.get('revision',0)+1
-   return True
-  st.error(r.text)
- except requests.RequestException as exc:st.error(f'Could not reach the backend: {exc}')
- return False
-if st.button('Analyze song',type='primary',use_container_width=True):
- if audio:analyze()
- else:st.error('Upload a song first.')
-p=st.session_state.get('plan')
-if p:
- if p.get('schema_version') != 'templates-v1':
-  st.error('Your backend is running an older version. Deploy the backend and shared files from this ZIP, then analyze again. Rendering is disabled until both versions match.')
-  st.stop()
- p.setdefault('detected_lyrics', ' '.join(w['word'] for w in p.get('words', [])))
- if p.get('template') not in TEMPLATES:
-  p['template']=recommend(p.get('creative', {}),p.get('timeline', {}))
- a,b,c=st.columns(3)
- a.metric('Hook',f"{p['clip_start']:.2f}–{p['clip_start']+p['duration']:.2f}s")
- b.metric('Tempo',f"{p['timeline']['tempo_bpm']} BPM")
- mood_display=c.empty()
- transcription=p.get('transcription',{})
- if transcription.get('vocal_separation','').startswith('fallback'):st.warning('Vocal separation was unavailable; please review the transcription from the original mix.')
- with st.expander('Other hook candidates'):
-  for i,x in enumerate(p['candidates']):
-   if st.button(f"{x['start']:.2f}–{x['end']:.2f}s",key=f'hook_{i}'):
-    if analyze(x['start']):st.rerun()
- st.subheader('Detected lyrics')
- reviewed=st.text_area('Review and correct',value=p.get('detected_lyrics', ' '.join(w['word'] for w in p.get('words', []))),key=f"review_{st.session_state.get('revision',0)}",height=140,help='Edits update the alignment words immediately. Re-align to measure corrected word timing against the vocals.')
- dirty=reviewed.split()!=p.get('detected_lyrics', ' '.join(w['word'] for w in p.get('words', []))).split()
- shown=decorate(preview_corrections(p['words'],reviewed,p['duration']),p['timeline']) if dirty else p['words']
- if dirty:st.info('Your edits are shown below. Re-align corrected lyrics before rendering; changed-word times are provisional.')
- if st.button('Re-align corrected lyrics',disabled=not reviewed.strip(),use_container_width=True):
-  if analyze(p['clip_start'],reviewed):st.rerun()
- st.subheader('Alignment check')
- st.caption('The words below always match the lyric editor. Beats affect animation; vocal alignment controls word timing.')
- st.dataframe([{'word':w['word'],'start':round(w['start'],3),'end':round(w['end'],3),'confidence':round(w.get('score',0),2),'timing':'Estimated' if w.get('estimated') else 'Aligned','effect':w['effect']} for w in shown],hide_index=True,use_container_width=True)
- estimated=sum(w.get('estimated',False) for w in shown)
- if estimated:st.warning(f'{estimated} word(s) have estimated timing. Review them before rendering.')
- st.subheader('Visual template')
- choice=st.selectbox('Scene',['auto']+list(TEMPLATES),format_func=lambda x:'Automatic — match song mood' if x=='auto' else TEMPLATES[x]['name'])
- preview_creative=preview_mood(p,reviewed)
- mood_display.metric('Mood',' · '.join(preview_creative['mood']))
- automatic_template=recommend(preview_creative,p['timeline'])
- selected=automatic_template if choice=='auto' else choice
- st.caption('Lyric mood: '+' · '.join(preview_creative['mood']))
- st.caption('Analysis: '+{'semantic_ai':'AI meaning and context','backend_analysis':'Backend song analysis','offline_rules':'Offline lyric rules'}.get(preview_creative.get('mood_method'),'Backend song analysis'))
- if preview_creative.get('mood_notice'):st.info(preview_creative['mood_notice'])
- mood_reason=preview_creative.get('mood_reason')
- if mood_reason:
-  st.caption(mood_reason)
- else:
-  st.warning('Lyric mood analysis needs the updated shared/director.py and shared/mood.py files. Deploy them with the frontend, then reboot the app.')
- if choice!='auto':st.caption('Manual scene selected; automatic suggestion: '+TEMPLATES[automatic_template]['name'])
- st.caption(TEMPLATES[selected]['name']+' · '+TEMPLATES[selected]['description'])
- st.image(frame(selected,1.5),width=270)
- if duration!=p['duration']:st.info('Analyze again to apply the new promo length.')
- if st.button('Render lyric video',type='primary',use_container_width=True,disabled=dirty or not shown or duration!=p['duration']):
-  try:
-   if not backend_supports(selected):st.stop()
-   render_plan={**p,'template':selected,'creative':preview_creative}
-   with st.spinner('Rendering animated template and synced lyrics…'):
-    r=requests.post(B+'/render',files={'audio':(audio.name,audio.getvalue(),audio.type)},data={'plan_json':json.dumps(render_plan)},timeout=1800)
-   if r.ok:st.session_state.video=B+'/video/'+r.json()['video_id']
-   else:st.error(r.text)
-  except requests.RequestException as exc:st.error(f'Render request failed: {exc}')
- if st.session_state.get('video'):
-    video_url = st.session_state.video
-    st.video(video_url)
+st.set_page_config(page_title='MusicAdPromo v7',page_icon='🎵',layout='wide')
+st.title('🎵 MusicAdPromo v7')
+st.caption('Choose the hook. Correct the lyrics. Create your promo.')
+BASE=os.environ.get('BACKEND_URL','http://127.0.0.1:8000').rstrip('/')
+audio=st.file_uploader('Upload your song',type=['mp3','wav','m4a'])
+duration=st.slider('Promo duration (seconds)',10,25,15)
+if not audio:st.stop()
+raw=audio.getvalue();name=audio.name
+key=(name,len(raw),duration)
+if st.session_state.get('song_key')!=key:
+    st.session_state.song_key=key
+    st.session_state.pop('hooks',None)
+    st.session_state.pop('timings',None)
+    st.session_state.pop('selection',None)
 
-    @st.cache_data(ttl=3600, show_spinner=False)
-    def fetch_video(url):
-        response = requests.get(url, timeout=120)
-        response.raise_for_status()
-        return response.content
-
+def send(path,fields):
     try:
-        with st.spinner('Preparing download…'):
-            video_bytes = fetch_video(video_url)
+        r=requests.post(BASE+path,files={'audio':(name,raw,'application/octet-stream')},data=fields,timeout=180)
+        r.raise_for_status();return r
+    except requests.RequestException as exc:
+        st.error(f'Backend error: {exc}');return None
 
-        st.download_button(
-            label='⬇️ Download MP4',
-            data=video_bytes,
-            file_name='musicadpromo.mp4',
-            mime='video/mp4',
-            use_container_width=True,
-        )
-    except requests.RequestException:
-        st.warning('Could not prepare the download. Refresh and try again.')
+if st.button('Find five recommended sections'):
+    with st.spinner('Analyzing song energy and onsets...'):
+        r=send('/v7/hooks',{'duration':duration})
+        if r is not None:
+            st.session_state.hooks=r.json()
+            st.session_state.selection=None
+
+hooks=st.session_state.get('hooks')
+if hooks:
+    song_duration=hooks['duration']
+    st.caption('Suggestions are ranked by energy and onset activity, not lyrical catchiness.')
+    options=[f"#{i+1} · {h['start']:.1f}s–{h['end']:.1f}s" for i,h in enumerate(hooks['hooks'])]
+    choice=st.radio('Select a recommended hook or your own section',options+['Custom section'])
+    if choice=='Custom section':
+        start=st.slider('Start time (seconds)',0.0,max(0.0,float(song_duration-duration)),0.0,step=0.1)
+    else:start=float(hooks['hooks'][options.index(choice)]['start'])
+    st.info(f'Selected: {start:.1f}s–{start+duration:.1f}s')
+    if st.button('Preview selected audio'):
+        r=send('/v7/preview',{'start':start,'duration':duration})
+        if r is not None:st.audio(r.content,format='audio/wav')
+    lyrics=st.text_area('Correct lyrics for this section (optional)',height=120,
+                        help='Paste exact lyrics, including non-English scripts. Whisper does not reliably force-align these yet.')
+    language=st.text_input('Language code (optional, e.g. es, hi, en)',value='')
+    if st.button('Transcribe selected clip with word timestamps'):
+        with st.spinner('Running Whisper...'):
+            r=send('/v7/align',{'start':start,'duration':duration,'lyrics':lyrics,'language':language})
+            if r is not None:
+                result=r.json();st.session_state.timings=result['words']
+                st.warning(result['warning'])
+                st.caption('Detected language: '+str(result['detected_language']))
+    if lyrics and st.button('Create rough editable timing draft from supplied lyrics'):
+        st.session_state.timings=approximate_alignment(lyrics,duration)
+        st.warning('These are evenly spaced placeholders, NOT audio-aligned timings. Edit before rendering.')
+    if 'timings' in st.session_state:
+        st.subheader('Review and edit word timing')
+        df=pd.DataFrame(st.session_state.timings,columns=['word','start','end'])
+        edited=st.data_editor(df,num_rows='dynamic',hide_index=True,key='editor')
+        if st.button('Validate and export timing JSON'):
+            try:
+                rows=edited.to_dict('records')
+                response=requests.post(BASE+'/v7/validate-timings',json={'duration':duration,'words':rows},timeout=30)
+                response.raise_for_status()
+                st.download_button('Download corrected timings',data=response.text,file_name='lyric_timings.json',mime='application/json')
+            except Exception as e:st.error(f'Invalid timings: {e}')
+    st.divider()
+    st.info('Video rendering and the four original scene templates require integration with your existing MusicAdPromo renderer. This standalone v7 module does not replace that renderer.')
+else:st.caption('Click Find five recommended sections to begin.')
