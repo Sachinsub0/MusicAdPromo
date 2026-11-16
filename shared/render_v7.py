@@ -44,13 +44,34 @@ def _background(template,t):
             d.polygon([(W//2,0),(x-28,H),(x+28,H)],fill=(220 if i%2 else 41,60,250,22))
         for i in range(6):d.ellipse((i*103-10,680,i*103+65,755),outline=(255,69,223,90),width=4)
     else:
-        road=[(W//2-55,570),(W//2+55,570),(W+110,H),(-110,H)]
-        d.polygon(road,fill=(11,13,35,245))
-        for i in range(12):
-            y=int((i*117+t*120)%H)
-            d.line((W//2,y,W//2,y+34),fill=(255,65,210,180),width=4)
-        d.polygon([(165,670),(375,670),(430,780),(110,780)],fill=(26,15,63,255))
-        d.rectangle((125,748,184,766),fill=(255,34,126,255));d.rectangle((355,748,414,766),fill=(255,34,126,255))
+        # Reference-style neon highway: purple star field, orange perspective rails,
+        # dashed central lane and two stylized low-poly cars.
+        import random
+        rng=random.Random(117)
+        for _ in range(145):
+            x=rng.randrange(W); y=rng.randrange(H)
+            r=1 if rng.random()<.93 else 2
+            d.ellipse((x-r,y-r,x+r,y+r),fill=(216,195,230,rng.randrange(75,180)))
+        horizon=310
+        d.polygon([(W//2-18,horizon),(W//2+18,horizon),(W+95,H),(-95,H)],fill=(8,9,24,255))
+        d.line([(W//2-18,horizon),(-95,H)],fill=(247,103,66,240),width=3)
+        d.line([(W//2+18,horizon),(W+95,H)],fill=(247,103,66,240),width=3)
+        # Lane markers advance towards the viewer as the music plays.
+        for j in range(10):
+            depth=((j/10+t*.20)%1)**1.65
+            y=int(horizon+depth*(H-horizon))
+            width=max(1,int(1+depth*5));height=int(5+depth*42)
+            d.line([(W//2,y),(W//2,y+height)],fill=(210,201,218,210),width=width)
+        def car(cx,cy,scale,body,window):
+            cw=int(115*scale);ch=int(62*scale)
+            pts=[(cx-cw//2,cy),(cx-cw//3,cy-ch//2),(cx+cw//3,cy-ch//2),(cx+cw//2,cy),
+                 (cx+cw//2-10*scale,cy+ch//3),(cx-cw//2+10*scale,cy+ch//3)]
+            d.polygon(pts,fill=body)
+            d.polygon([(cx-cw*.26,cy-ch*.32),(cx-cw*.18,cy-ch*.46),(cx+cw*.18,cy-ch*.46),(cx+cw*.28,cy-ch*.32)],fill=window)
+            d.line([(cx-cw*.38,cy+ch*.08),(cx-cw*.16,cy+ch*.08)],fill=(255,183,107,220),width=max(2,int(4*scale)))
+            d.line([(cx+cw*.16,cy+ch*.08),(cx+cw*.38,cy+ch*.08)],fill=(255,183,107,220),width=max(2,int(4*scale)))
+        car(int(W*.29),int(H*.69),1.05,(181,49,66,255),(30,15,34,255))
+        car(int(W*.75),int(H*.82),1.1,(55,137,176,255),(24,41,63,255))
     return im
 
 def _wrap(draw,text,font,max_width):
@@ -65,20 +86,45 @@ def _wrap(draw,text,font,max_width):
 
 def _lyrics_frame(im,words,t):
     if not words:return
-    active=[w for w in words if float(w['start'])<=t<=float(w['end'])]
+    d=ImageDraw.Draw(im,'RGBA')
     nearest=next((i for i,w in enumerate(words) if float(w['start'])<=t<float(w['end'])),None)
-    if nearest is None:
-        nearest=min(range(len(words)),key=lambda i:abs(float(words[i]['start'])-t))
-    lo=max(0,nearest-5);hi=min(len(words),nearest+6)
-    text=' '.join(str(w['word']) for w in words[lo:hi]);d=ImageDraw.Draw(im,'RGBA')
-    font=_font(36);lines=_wrap(d,text,font,W-72)
-    if not lines:return
-    y=H//2-(len(lines)*49)//2
-    d.rounded_rectangle((20,y-26,W-20,y+len(lines)*49+18),radius=20,fill=(0,0,0,135))
+    if nearest is None:nearest=min(range(len(words)),key=lambda i:abs(float(words[i]['start'])-t))
+    # Keep a coherent phrase on screen, with the sung word outlined in orange.
+    lo=max(0,(nearest//11)*11);hi=min(len(words),lo+11)
+    visible=words[lo:hi]
+    font=_font(43)
+    lines=[];line=[];width=0
+    for idx,w in enumerate(visible,lo):
+        token=str(w['word']).strip()
+        token_width=d.textbbox((0,0),token+' ',font=font)[2]
+        if line and width+token_width>W-45:
+            lines.append(line);line=[];width=0
+        line.append((idx,token));width+=token_width
+    if line:lines.append(line)
+    if len(lines)>5:
+        font=_font(36)
+        lines=[];line=[];width=0
+        for idx,w in enumerate(visible,lo):
+            token=str(w['word']).strip();tw=d.textbbox((0,0),token+' ',font=font)[2]
+            if line and width+tw>W-45:lines.append(line);line=[];width=0
+            line.append((idx,token));width+=tw
+        if line:lines.append(line)
+    line_height=int(font.size*1.08) if hasattr(font,'size') else 46
+    y=int(H*.37-len(lines)*line_height/2)
     for line in lines:
-        bbox=d.textbbox((0,0),line,font=font);x=(W-(bbox[2]-bbox[0]))//2
-        d.text((x,y),line,font=font,fill=(255,255,255,255),stroke_width=2,stroke_fill=(0,0,0,220));y+=49
-    if active:d.rounded_rectangle((W//2-38,y+2,W//2+38,y+7),radius=3,fill=(255,216,99,255))
+        full=' '.join(token for _,token in line)
+        line_width=d.textbbox((0,0),full,font=font)[2]
+        x=(W-line_width)//2
+        for idx,token in line:
+            bbox=d.textbbox((0,0),token,font=font)
+            tw=bbox[2]
+            if idx==nearest:
+                d.rounded_rectangle((x-5,y-2,x+tw+5,y+line_height-3),radius=5,outline=(255,105,65,255),width=2)
+                color=(255,111,72,255)
+            else:color=(238,236,242,255)
+            d.text((x,y),token,font=font,fill=color,stroke_width=1,stroke_fill=(8,6,18,230))
+            x+=d.textbbox((0,0),token+' ',font=font)[2]
+        y+=line_height
 
 def render_mp4(y,sr,template,words=None):
     if template not in TEMPLATES:raise ValueError('Unknown template')
