@@ -11,7 +11,7 @@ MAX_BYTES=30*1024*1024
 async def receive(audio):
     data=await audio.read(MAX_BYTES+1)
     if len(data)>MAX_BYTES:raise HTTPException(413,'Audio file exceeds 30MB')
-    try:return load_audio(data)
+    try:return load_audio(data, filename=audio.filename or "upload.mp3")
     except Exception as e:raise HTTPException(422,f'Unable to decode audio: {e}')
 
 @app.get('/health')

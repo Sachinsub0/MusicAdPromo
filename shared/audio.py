@@ -3,13 +3,16 @@ import numpy as np
 import soundfile as sf
 import librosa
 
-def load_audio(data: bytes):
+def load_audio(data: bytes, filename: str = "upload.mp3"):
     try:
         y, sr = sf.read(io.BytesIO(data), always_2d=True)
         return y.mean(axis=1).astype(np.float32), sr
     except Exception:
         import tempfile, os
-        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as f:
+        suffix=os.path.splitext(filename)[1].lower()
+        if suffix not in (".mp3", ".wav", ".m4a", ".flac", ".ogg"):
+            suffix=".mp3"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
             f.write(data); path=f.name
         try:
             y,sr=librosa.load(path,sr=None,mono=True)

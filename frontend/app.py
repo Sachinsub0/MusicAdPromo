@@ -21,9 +21,16 @@ if st.session_state.get('song_key')!=key:
 def send(path,fields):
     try:
         r=requests.post(BASE+path,files={'audio':(name,raw,'application/octet-stream')},data=fields,timeout=180)
-        r.raise_for_status();return r
+        if not r.ok:
+            try:
+                detail=r.json().get('detail',r.text)
+            except ValueError:
+                detail=r.text[:800]
+            st.error(f'Backend rejected the request (HTTP {r.status_code}): {detail}')
+            return None
+        return r
     except requests.RequestException as exc:
-        st.error(f'Backend error: {exc}');return None
+        st.error(f'Backend connection error: {exc}');return None
 
 if st.button('Find five recommended sections'):
     with st.spinner('Analyzing song energy and onsets...'):
