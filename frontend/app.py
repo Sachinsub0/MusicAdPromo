@@ -1,7 +1,7 @@
 import os,sys,io,json,requests,streamlit as st
 import pandas as pd
 sys.path.insert(0,os.path.dirname(os.path.dirname(__file__)))
-from shared.alignment_v7 import approximate_alignment,preserve_alignment_on_edit
+from shared.alignment_v7 import approximate_alignment, preserve_alignment_on_edit
 
 st.set_page_config(page_title='MusicAdPromo v7',page_icon='🎵',layout='wide')
 st.title('🎵 MusicAdPromo v7')
