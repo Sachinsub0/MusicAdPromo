@@ -1,4 +1,6 @@
 import os,sys,io,json,requests,streamlit as st
+import uuid
+from posthog import Posthog
 import pandas as pd
 sys.path.insert(0,os.path.dirname(os.path.dirname(__file__)))
 from shared.alignment_v7 import approximate_alignment, preserve_alignment_on_edit
@@ -6,6 +8,38 @@ from shared.alignment_v7 import approximate_alignment, preserve_alignment_on_edi
 st.set_page_config(page_title='MusicAdPromo v7',page_icon='🎵',layout='wide')
 st.title('🎵 MusicAdPromo v7')
 st.caption('Choose the hook. Correct the lyrics. Create your promo.')
+# Anonymous session-based product analytics. No audio, lyrics, or filenames are sent.
+# Configure POSTHOG_API_KEY and POSTHOG_HOST in Streamlit Secrets.
+@st.cache_resource
+def get_posthog(api_key, host):
+    return Posthog(project_api_key=api_key, host=host, sync_mode=True)
+
+try:
+    _ph_key = st.secrets.get('POSTHOG_API_KEY', '')
+    _ph_host = st.secrets.get('POSTHOG_HOST', 'https://us.i.posthog.com')
+except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+    _ph_key, _ph_host = '', 'https://us.i.posthog.com'
+
+if 'analytics_session_id' not in st.session_state:
+    st.session_state.analytics_session_id = str(uuid.uuid4())
+
+def track(event, **properties):
+    if not _ph_key:
+        return
+    try:
+        get_posthog(_ph_key, _ph_host).capture(
+            event=event,
+            distinct_id=st.session_state.analytics_session_id,
+            properties={'app_version': 'v7', **properties},
+        )
+    except Exception:
+        # Analytics outages must never interrupt music/video processing.
+        pass
+
+if not st.session_state.get('analytics_visit_tracked'):
+    track('app_visited')
+    st.session_state.analytics_visit_tracked = True
+
 BASE=os.environ.get('BACKEND_URL','http://127.0.0.1:8000').rstrip('/')
 audio=st.file_uploader('Upload your song (up to 200 MB)',type=['mp3','wav','m4a'])
 duration=st.slider('Promo duration (seconds)',10,25,15)
@@ -23,6 +57,7 @@ if st.session_state.get('song_key')!=key:
     st.session_state.pop('rendered_mp4',None)
     st.session_state.pop('lyric_text',None)
     st.session_state.pop('timings_lyrics',None)
+    track('song_uploaded', size_mb=round(len(raw)/(1024*1024), 2), duration_seconds=duration)
 
 def send(path,fields):
     try:
@@ -32,18 +67,22 @@ def send(path,fields):
                 detail=r.json().get('detail',r.text)
             except ValueError:
                 detail=r.text[:800]
+            track('backend_request_failed', endpoint=path, status_code=r.status_code)
             st.error(f'Backend rejected the request (HTTP {r.status_code}): {detail}')
             return None
         return r
     except requests.RequestException as exc:
+        track('backend_request_failed', endpoint=path, error_type=type(exc).__name__)
         st.error(f'Backend connection error: {exc}');return None
 
 if st.button('Find five recommended sections'):
+    track('hook_analysis_started', duration_seconds=duration)
     with st.spinner('Analyzing song energy and onsets...'):
         r=send('/v7/hooks',{'duration':duration})
         if r is not None:
             st.session_state.hooks=r.json()
             st.session_state.selection=None
+            track('hook_analysis_completed', duration_seconds=duration)
 
 hooks=st.session_state.get('hooks')
 if hooks:
@@ -62,12 +101,14 @@ if hooks:
     st.caption('Transcribe first, then fix any missed or incorrect words directly in the box. You can also paste your own lyrics.')
     language=st.text_input('Language code (optional, e.g. es, hi, en)',value='')
     if st.button('Transcribe selected clip with word timestamps'):
+        track('transcription_started')
         with st.spinner('Running Whisper...'):
             r=send('/v7/align',{'start':start,'duration':duration,'lyrics':'','language':language})
             if r is not None:
                 result=r.json()
                 words=result.get('words',[])
                 st.session_state.timings=words
+                track('transcription_completed', word_count=len(words))
                 transcribed=' '.join(w['word'] for w in words)
                 st.session_state.lyric_text=transcribed
                 st.session_state.timings_lyrics=transcribed
@@ -89,6 +130,7 @@ if hooks:
             st.info('Lyrics already match the timing rows.')
         else:
             st.session_state.timings=preserve_alignment_on_edit(existing,lyrics,duration)
+            track('lyrics_edited')
             st.session_state.timings_lyrics=lyrics
             st.session_state.pop('rendered_mp4',None)
             st.warning('Text changes applied. Existing word timings were preserved where possible; newly inserted words have estimated timings. Review them before rendering.')
@@ -111,6 +153,7 @@ if hooks:
     template_names={'neon_racecars':'Neon Racecars','skyline':'Skyline','nightclub':'Nightclub','sunset_coast':'Sunset Coast'}
     template=st.selectbox('Cinematic template',list(template_names),format_func=lambda x:template_names[x])
     if st.button('Generate MP4 video',type='primary'):
+        track('video_generation_started', template=template, duration_seconds=duration)
         words=[]
         if 'timings' in st.session_state:
             words=edited.to_dict('records')
@@ -122,7 +165,9 @@ if hooks:
             if r is not None:
                 st.session_state.rendered_mp4=r.content
                 st.session_state.rendered_key=(name,len(raw),duration,start,template)
+                track('video_generated', template=template, duration_seconds=duration)
     if st.session_state.get('rendered_mp4') and st.session_state.get('rendered_key')==(name,len(raw),duration,start,template):
         st.video(st.session_state.rendered_mp4)
-        st.download_button('Download MP4',data=st.session_state.rendered_mp4,file_name='MusicAdPromo-v7.mp4',mime='video/mp4')
+        st.download_button('Download MP4',data=st.session_state.rendered_mp4,file_name='MusicAdPromo-v7.mp4',mime='video/mp4',on_click=lambda: track('download_clicked',template=template))
 else:st.caption('Click Find five recommended sections to begin.')
+
