@@ -15,10 +15,10 @@ def get_posthog(api_key, host):
     return Posthog(project_api_key=api_key, host=host, sync_mode=True)
 
 try:
-    _ph_key = st.secrets.get('POSTHOG_API_KEY', '')
+    _ph_key = st.secrets.get('POSTHOG_API_KEY', 'phc_uLcnZH4jSU7EanJYk5qw2nmPc8vMuKdYccNrKuEZJVtZ')
     _ph_host = st.secrets.get('POSTHOG_HOST', 'https://us.i.posthog.com')
 except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
-    _ph_key, _ph_host = '', 'https://us.i.posthog.com'
+    _ph_key, _ph_host = 'phc_uLcnZH4jSU7EanJYk5qw2nmPc8vMuKdYccNrKuEZJVtZ', 'https://us.i.posthog.com'
 
 if 'analytics_session_id' not in st.session_state:
     st.session_state.analytics_session_id = str(uuid.uuid4())
